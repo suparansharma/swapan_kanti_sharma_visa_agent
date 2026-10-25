@@ -13,7 +13,9 @@ export interface IVisaApplication extends Document {
     | "tourist_visa"
     | "student_visa"
     | "work_permit"
-    | "business_visa";
+    | "business_visa"
+    | "medical_visa"
+    | "medical_attendant";
   status:
     | "submitted"
     | "document_verification"
@@ -25,6 +27,9 @@ export interface IVisaApplication extends Document {
   applicationDate: Date;
   estimatedDelivery?: Date;
   feeAmount: number;
+  totalAmount: number; // কত টাকা নিবে তার কাছে
+  paidAmount: number;  // সে কত টাকা দিছে
+  dueAmount: number;   // বকেয়া টাকা
   feeStatus: "paid" | "partial" | "pending";
   notes?: string;
   createdBy?: mongoose.Types.ObjectId;
@@ -76,6 +81,8 @@ const VisaApplicationSchema = new Schema<IVisaApplication>(
         "student_visa",
         "work_permit",
         "business_visa",
+        "medical_visa",
+        "medical_attendant",
       ],
       default: "tourist_visa",
     },
@@ -103,6 +110,18 @@ const VisaApplicationSchema = new Schema<IVisaApplication>(
       type: Number,
       default: 0,
     },
+    totalAmount: {
+      type: Number,
+      default: 0,
+    },
+    paidAmount: {
+      type: Number,
+      default: 0,
+    },
+    dueAmount: {
+      type: Number,
+      default: 0,
+    },
     feeStatus: {
       type: String,
       enum: ["paid", "partial", "pending"],
@@ -121,6 +140,14 @@ const VisaApplicationSchema = new Schema<IVisaApplication>(
     timestamps: true,
   }
 );
+
+// Pre-save hook to ensure dueAmount is correctly calculated
+VisaApplicationSchema.pre("save", function () {
+  this.dueAmount = Math.max(0, (this.totalAmount || 0) - (this.paidAmount || 0));
+  if (this.totalAmount && !this.feeAmount) {
+    this.feeAmount = this.totalAmount;
+  }
+});
 
 // Search indexes for rapid lookup by trackingId or passportNumber
 VisaApplicationSchema.index({ trackingId: 1 });

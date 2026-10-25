@@ -36,20 +36,36 @@ export async function GET(request: Request) {
       .lean();
 
     // Calculate summary statistics for the dashboard
-    const totalCount = await VisaApplication.countDocuments();
-    const approvedCount = await VisaApplication.countDocuments({ status: "approved" });
-    const processingCount = await VisaApplication.countDocuments({
-      status: { $in: ["submitted", "document_verification", "embassy_processing", "biometric_pending"] },
-    });
-    const readyCount = await VisaApplication.countDocuments({
-      status: { $in: ["ready_for_pickup", "delivered"] },
-    });
+    const allVisas = await VisaApplication.find().lean();
+    let totalContractAmount = 0;
+    let totalCollectedAmount = 0;
+    let totalDueAmount = 0;
+    let approvedCount = 0;
+    let processingCount = 0;
+    let readyCount = 0;
+
+    for (const v of allVisas) {
+      const total = Number(v.totalAmount ?? v.feeAmount) || 0;
+      const paid = Number(v.paidAmount ?? (v.feeStatus === "paid" ? total : 0)) || 0;
+      const due = Number(v.dueAmount ?? Math.max(0, total - paid)) || 0;
+
+      totalContractAmount += total;
+      totalCollectedAmount += paid;
+      totalDueAmount += due;
+
+      if (v.status === "approved") approvedCount++;
+      else if (v.status === "ready_for_pickup" || v.status === "delivered") readyCount++;
+      else processingCount++;
+    }
 
     return NextResponse.json({
       success: true,
       applications,
       stats: {
-        total: totalCount,
+        total: allVisas.length,
+        totalContractAmount,
+        totalCollectedAmount,
+        totalDueAmount,
         approved: approvedCount,
         processing: processingCount,
         ready: readyCount,
@@ -78,6 +94,8 @@ export async function POST(request: Request) {
       serviceType,
       status,
       feeAmount,
+      totalAmount,
+      paidAmount,
       feeStatus,
       estimatedDelivery,
       notes,
@@ -95,6 +113,17 @@ export async function POST(request: Request) {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const trackingId = `${prefix}-${randomSuffix}`;
 
+    const numTotal = Number(totalAmount ?? feeAmount) || 0;
+    const numPaid = Number(paidAmount) || 0;
+    const computedDue = Math.max(0, numTotal - numPaid);
+    const computedFeeStatus =
+      feeStatus ||
+      (numTotal > 0 && numPaid >= numTotal
+        ? "paid"
+        : numPaid > 0
+        ? "partial"
+        : "pending");
+
     const newApp = await VisaApplication.create({
       trackingId,
       applicantName: applicantName.trim(),
@@ -104,8 +133,11 @@ export async function POST(request: Request) {
       destinationCountry: destinationCountry.trim(),
       serviceType: serviceType || "tourist_visa",
       status: status || "submitted",
-      feeAmount: Number(feeAmount) || 0,
-      feeStatus: feeStatus || "pending",
+      feeAmount: numTotal,
+      totalAmount: numTotal,
+      paidAmount: numPaid,
+      dueAmount: computedDue,
+      feeStatus: computedFeeStatus,
       estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : undefined,
       notes: notes || "",
       createdBy: authUser?.userId ? (authUser.userId as unknown as string) : undefined,
@@ -127,20 +159,61 @@ export async function PUT(request: Request) {
   try {
     await connectToDatabase();
     const body = await request.json();
-    const { id, status, feeStatus, notes, estimatedDelivery } = body;
+    const {
+      id,
+      applicantName,
+      passportNumber,
+      phone,
+      email,
+      destinationCountry,
+      serviceType,
+      status,
+      feeStatus,
+      totalAmount,
+      paidAmount,
+      notes,
+      estimatedDelivery,
+    } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Application ID is required" }, { status: 400 });
     }
 
+    const updateFields: Record<string, unknown> = {};
+    if (applicantName !== undefined) updateFields.applicantName = applicantName.trim();
+    if (passportNumber !== undefined) updateFields.passportNumber = passportNumber.trim().toUpperCase();
+    if (phone !== undefined) updateFields.phone = phone.trim();
+    if (email !== undefined) updateFields.email = email ? email.trim() : "";
+    if (destinationCountry !== undefined) updateFields.destinationCountry = destinationCountry.trim();
+    if (serviceType !== undefined) updateFields.serviceType = serviceType;
+    if (status) updateFields.status = status;
+    if (feeStatus) updateFields.feeStatus = feeStatus;
+    if (notes !== undefined) updateFields.notes = notes;
+    if (estimatedDelivery) updateFields.estimatedDelivery = new Date(estimatedDelivery);
+
+    if (totalAmount !== undefined || paidAmount !== undefined) {
+      const current = await VisaApplication.findById(id);
+      if (current) {
+        const newTotal = totalAmount !== undefined ? Number(totalAmount) : (current.totalAmount || current.feeAmount || 0);
+        const newPaid = paidAmount !== undefined ? Number(paidAmount) : (current.paidAmount || 0);
+        updateFields.totalAmount = newTotal;
+        updateFields.feeAmount = newTotal;
+        updateFields.paidAmount = newPaid;
+        updateFields.dueAmount = Math.max(0, newTotal - newPaid);
+        if (!feeStatus) {
+          updateFields.feeStatus =
+            newTotal > 0 && newPaid >= newTotal
+              ? "paid"
+              : newPaid > 0
+              ? "partial"
+              : "pending";
+        }
+      }
+    }
+
     const updated = await VisaApplication.findByIdAndUpdate(
       id,
-      {
-        ...(status && { status }),
-        ...(feeStatus && { feeStatus }),
-        ...(notes !== undefined && { notes }),
-        ...(estimatedDelivery && { estimatedDelivery: new Date(estimatedDelivery) }),
-      },
+      updateFields,
       { new: true }
     );
 

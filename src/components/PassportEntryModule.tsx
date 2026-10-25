@@ -35,11 +35,27 @@ export interface PassportEntryItem {
   totalAmount: number;
   paidAmount: number;
   dueAmount: number;
+  onlineTrackId?: string;
   status: string;
   deliveryDate?: string;
   notes?: string;
   createdAt: string;
 }
+
+export const PASSPORT_TYPE_OPTIONS = [
+  { value: "5y_regular_21d", label: "১. ৫ বছর মেয়াদী সাধারণ পাসপোর্ট (২১ কর্ম দিবস)" },
+  { value: "10y_regular_21d", label: "২. ১০ বছর মেয়াদী সাধারণ পাসপোর্ট (২১ কর্ম দিবস)" },
+  { value: "5y_urgent_7d", label: "৩. ৫ বছর মেয়াদী জরুরি পাসপোর্ট (৭ কর্ম দিবস)" },
+  { value: "10y_urgent_7d", label: "৪. ১০ বছর মেয়াদী জরুরি পাসপোর্ট (৭ কর্ম দিবস)" },
+  { value: "5y_very_urgent_3d", label: "৫. ৫ বছর মেয়াদী অতীব জরুরি পাসপোর্ট (৩ কর্ম দিবস)" },
+  { value: "10y_very_urgent_3d", label: "৬. ১০ বছর মেয়াদী অতীব জরুরি পাসপোর্ট (৩ কর্ম দিবস)" },
+  { value: "5y_noc_3d", label: "৭. ৫ বছর মেয়াদী অতীব জরুরি অনাপত্তি সনদ (NOC) এর ভিত্তিতে (৩ কর্ম দিবস)" },
+  { value: "10y_noc_3d", label: "৮. ১০ বছর মেয়াদী অতীব জরুরি অনাপত্তি সনদ (NOC) এর ভিত্তিতে (৩ কর্ম দিবস)" },
+  { value: "5y_go_medical_hajj_3d", label: "৯. ৫ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে চিকিৎসা, হজ্জ পালন,তীর্থস্থান ভ্রমনের ক্ষেত্রে (৩ কর্ম দিবস)" },
+  { value: "10y_go_medical_hajj_3d", label: "১০. ১০ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে চিকিৎসা, হজ্জ পালন,তীর্থস্থান ভ্রমনের ক্ষেত্রে (৩ কর্ম দিবস)" },
+  { value: "5y_go_govt_work_3d", label: "১১. ৫ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে সরকারী কাজের ক্ষেত্রে (৩ কর্ম দিবস)" },
+  { value: "10y_go_govt_work_3d", label: "১২. ১০ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে সরকারী কাজের ক্ষেত্রে (৩ কর্ম দিবস)" },
+];
 
 export default function PassportEntryModule() {
   const [entries, setEntries] = useState<PassportEntryItem[]>([]);
@@ -63,19 +79,45 @@ export default function PassportEntryModule() {
   const [email, setEmail] = useState("");
   const [nid, setNid] = useState("");
   const [birthDate, setBirthDate] = useState("");
-  const [passportType, setPassportType] = useState("e_passport_10y_48p");
+  const [passportType, setPassportType] = useState(PASSPORT_TYPE_OPTIONS[0].value);
   const [totalAmount, setTotalAmount] = useState<number | "">("");
   const [paidAmount, setPaidAmount] = useState<number | "">("");
+  const [onlineTrackId, setOnlineTrackId] = useState("");
   const [status, setStatus] = useState("submitted");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Modal: View / Edit Details
+  // Quick Inline Online Track ID Edit
+  const [editingTrackIdRow, setEditingTrackIdRow] = useState<string | null>(null);
+  const [tempTrackId, setTempTrackId] = useState<string>("");
+  const [savingTrackId, setSavingTrackId] = useState<string | null>(null);
+
+  // Modal: View Details
   const [selectedEntry, setSelectedEntry] = useState<PassportEntryItem | null>(null);
   const [editPaymentModal, setEditPaymentModal] = useState(false);
   const [newPaidInput, setNewPaidInput] = useState<number | "">("");
   const [updatingPayment, setUpdatingPayment] = useState(false);
+
+  // Modal: Edit Full Entry
+  const [editingEntry, setEditingEntry] = useState<PassportEntryItem | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editMobile, setEditMobile] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editNid, setEditNid] = useState("");
+  const [editBirthDate, setEditBirthDate] = useState("");
+  const [editPassportType, setEditPassportType] = useState(PASSPORT_TYPE_OPTIONS[0].value);
+  const [editTotalAmount, setEditTotalAmount] = useState<number | "">("");
+  const [editPaidAmount, setEditPaidAmount] = useState<number | "">("");
+  const [editOnlineTrackId, setEditOnlineTrackId] = useState("");
+  const [editStatus, setEditStatus] = useState("submitted");
+  const [editNotes, setEditNotes] = useState("");
+  const [updatingEntry, setUpdatingEntry] = useState(false);
+  const [editFormError, setEditFormError] = useState<string | null>(null);
+
+  const numEditTotal = Number(editTotalAmount) || 0;
+  const numEditPaid = Number(editPaidAmount) || 0;
+  const liveEditDue = Math.max(0, numEditTotal - numEditPaid);
 
   // Live calculation of Due Amount in Add Form
   const numTotal = Number(totalAmount) || 0;
@@ -148,6 +190,7 @@ export default function PassportEntryModule() {
           passportType,
           totalAmount: numTotal,
           paidAmount: numPaid,
+          onlineTrackId: onlineTrackId.trim(),
           status,
           notes: notes.trim(),
         }),
@@ -164,6 +207,8 @@ export default function PassportEntryModule() {
         setBirthDate("");
         setTotalAmount("");
         setPaidAmount("");
+        setOnlineTrackId("");
+        setPassportType(PASSPORT_TYPE_OPTIONS[0].value);
         setNotes("");
         fetchEntries();
       } else {
@@ -224,6 +269,103 @@ export default function PassportEntryModule() {
     }
   };
 
+  // Inline quick save of Online Track ID
+  const handleQuickTrackIdSave = async (id: string, trackIdValue: string) => {
+    try {
+      setSavingTrackId(id);
+      const res = await fetch("/api/passport-entries", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          onlineTrackId: trackIdValue.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setEditingTrackIdRow(null);
+        setEntries((prev) =>
+          prev.map((item) =>
+            item._id === id ? { ...item, onlineTrackId: trackIdValue.trim() } : item
+          )
+        );
+        if (selectedEntry && selectedEntry._id === id) {
+          setSelectedEntry({ ...selectedEntry, onlineTrackId: trackIdValue.trim() });
+        }
+      } else {
+        alert(data.error || "Online Track ID সংরক্ষণ করা সম্ভব হয়নি।");
+      }
+    } catch (err) {
+      console.error("Save onlineTrackId error:", err);
+      alert("সার্ভার সমস্যা, আবার চেষ্টা করুন।");
+    } finally {
+      setSavingTrackId(null);
+    }
+  };
+
+  // Open Edit Modal
+  const handleOpenEdit = (item: PassportEntryItem) => {
+    setEditingEntry(item);
+    setEditName(item.name);
+    setEditMobile(item.mobile);
+    setEditEmail(item.email || "");
+    setEditNid(item.nid);
+    setEditBirthDate(item.birthDate);
+    setEditPassportType(item.passportType || PASSPORT_TYPE_OPTIONS[0].value);
+    setEditTotalAmount(item.totalAmount);
+    setEditPaidAmount(item.paidAmount);
+    setEditOnlineTrackId(item.onlineTrackId || "");
+    setEditStatus(item.status);
+    setEditNotes(item.notes || "");
+    setEditFormError(null);
+  };
+
+  // Submit Update Entry
+  const handleUpdateEntrySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEntry) return;
+
+    if (!editName.trim() || !editMobile.trim() || !editNid.trim() || !editBirthDate.trim()) {
+      setEditFormError("দয়া করে নাম, মোবাইল, NID এবং জন্মতারিখ পূরণ করুন।");
+      return;
+    }
+
+    try {
+      setUpdatingEntry(true);
+      const res = await fetch("/api/passport-entries", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingEntry._id,
+          name: editName.trim(),
+          mobile: editMobile.trim(),
+          email: editEmail.trim(),
+          nid: editNid.trim(),
+          birthDate: editBirthDate.trim(),
+          passportType: editPassportType,
+          totalAmount: numEditTotal,
+          paidAmount: numEditPaid,
+          onlineTrackId: editOnlineTrackId.trim(),
+          status: editStatus,
+          notes: editNotes.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setEditingEntry(null);
+        fetchEntries();
+      } else {
+        setEditFormError(data.error || "আপডেট ব্যর্থ হয়েছে");
+      }
+    } catch (err) {
+      setEditFormError("সার্ভার সমস্যা, আবার চেষ্টা করুন।");
+    } finally {
+      setUpdatingEntry(false);
+    }
+  };
+
   // Delete Entry
   const handleDeleteEntry = async (id: string) => {
     if (!confirm("আপনি কি নিশ্চিতভাবে এই পাসপোর্ট এন্ট্রিটি মুছে ফেলতে চান?")) return;
@@ -231,6 +373,7 @@ export default function PassportEntryModule() {
       const res = await fetch(`/api/passport-entries?id=${id}`, { method: "DELETE" });
       if (res.ok) {
         if (selectedEntry?._id === id) setSelectedEntry(null);
+        if (editingEntry?._id === id) setEditingEntry(null);
         fetchEntries();
       }
     } catch (err) {
@@ -239,6 +382,9 @@ export default function PassportEntryModule() {
   };
 
   const getPassportTypeLabel = (t: string) => {
+    const found = PASSPORT_TYPE_OPTIONS.find((item) => item.value === t);
+    if (found) return found.label;
+
     switch (t) {
       case "e_passport_10y_48p":
         return "১০ বছর (৪৮ পাতা)";
@@ -463,6 +609,7 @@ export default function PassportEntryModule() {
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>মোবাইল ও ইমেইল</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>NID ও জন্মতারিখ</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>পাসপোর্ট ধরন</th>
+                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>Online Track ID</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>চুক্তি টাকা</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>জমা টাকা</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>বকেয়া টাকা</th>
@@ -473,13 +620,13 @@ export default function PassportEntryModule() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={11} style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
                     পাসপোর্ট এন্ট্রি লোড হচ্ছে...
                   </td>
                 </tr>
               ) : entries.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: "50px", textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={11} style={{ padding: "50px", textAlign: "center", color: "var(--text-muted)" }}>
                     <div style={{ marginBottom: "12px", fontSize: "1.1rem" }}>কোনো পাসপোর্ট এন্ট্রি পাওয়া যায়নি।</div>
                     <button onClick={() => setShowAddModal(true)} className="btn-primary btn-sm">
                       + প্রথম এন্ট্রি যুক্ত করুন
@@ -539,6 +686,107 @@ export default function PassportEntryModule() {
                       >
                         {getPassportTypeLabel(item.passportType)}
                       </span>
+                    </td>
+
+                    {/* Online Track ID (Inline Add / Edit) */}
+                    <td style={{ padding: "12px 16px", minWidth: "160px" }}>
+                      {editingTrackIdRow === item._id ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <input
+                            type="text"
+                            value={tempTrackId}
+                            onChange={(e) => setTempTrackId(e.target.value)}
+                            placeholder="Track ID লিখুন"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleQuickTrackIdSave(item._id, tempTrackId);
+                              } else if (e.key === "Escape") {
+                                setEditingTrackIdRow(null);
+                              }
+                            }}
+                            className="input-field"
+                            style={{
+                              height: "32px",
+                              padding: "4px 8px",
+                              fontSize: "0.8rem",
+                              fontFamily: "monospace",
+                              fontWeight: 700,
+                              textTransform: "uppercase",
+                              width: "120px",
+                            }}
+                          />
+                          <button
+                            onClick={() => handleQuickTrackIdSave(item._id, tempTrackId)}
+                            disabled={savingTrackId === item._id}
+                            className="btn-primary btn-sm"
+                            style={{ padding: "4px 7px", height: "32px" }}
+                            title="সংরক্ষণ করুন"
+                          >
+                            <Check size={13} />
+                          </button>
+                          <button
+                            onClick={() => setEditingTrackIdRow(null)}
+                            className="btn-secondary btn-sm"
+                            style={{ padding: "4px 7px", height: "32px" }}
+                            title="বাতিল"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => {
+                            setEditingTrackIdRow(item._id);
+                            setTempTrackId(item.onlineTrackId || "");
+                          }}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            cursor: "pointer",
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            background: item.onlineTrackId
+                              ? "rgba(56, 189, 248, 0.1)"
+                              : "rgba(255, 255, 255, 0.04)",
+                            border: item.onlineTrackId
+                              ? "1px solid rgba(56, 189, 248, 0.25)"
+                              : "1px dashed var(--border-subtle)",
+                            transition: "all 0.15s ease",
+                          }}
+                          title="Online Track ID যোগ বা পরিবর্তন করতে ক্লিক করুন"
+                        >
+                          {item.onlineTrackId ? (
+                            <>
+                              <span
+                                style={{
+                                  fontFamily: "monospace",
+                                  fontWeight: 700,
+                                  color: "#38bdf8",
+                                  fontSize: "0.82rem",
+                                  letterSpacing: "0.5px",
+                                }}
+                              >
+                                {item.onlineTrackId}
+                              </span>
+                              <Edit size={12} color="#38bdf8" style={{ opacity: 0.7 }} />
+                            </>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: "0.76rem",
+                                color: "var(--text-muted)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                              }}
+                            >
+                              <Plus size={12} /> ID যোগ করুন
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
 
                     {/* Total Amount */}
@@ -610,6 +858,14 @@ export default function PassportEntryModule() {
                           <Eye size={14} />
                         </button>
                         <button
+                          onClick={() => handleOpenEdit(item)}
+                          className="btn-secondary btn-sm"
+                          style={{ padding: "5px 8px", color: "#38bdf8" }}
+                          title="এডিট করুন"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button
                           onClick={() => handleDeleteEntry(item._id)}
                           className="btn-secondary btn-sm btn-danger"
                           style={{ padding: "5px 8px" }}
@@ -636,7 +892,7 @@ export default function PassportEntryModule() {
             left: 0,
             right: 0,
             bottom: 0,
-            background: "rgba(0, 0, 0, 0.78)",
+            background: "var(--modal-backdrop)",
             backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "center",
@@ -646,16 +902,16 @@ export default function PassportEntryModule() {
           }}
         >
           <div
-            className="glass-panel"
+            className="glass-panel modal-container"
             style={{
               width: "100%",
               maxWidth: "640px",
               padding: "32px",
-              background: "rgba(16, 22, 38, 0.98)",
+              background: "var(--bg-modal)",
               border: "1px solid rgba(99, 102, 241, 0.4)",
               maxHeight: "90vh",
               overflowY: "auto",
-              boxShadow: "0 25px 60px rgba(0, 0, 0, 0.6)",
+              boxShadow: "var(--card-shadow)",
             }}
           >
             {/* Modal Header */}
@@ -795,18 +1051,34 @@ export default function PassportEntryModule() {
                   onChange={(e) => setPassportType(e.target.value)}
                   className="input-field"
                 >
-                  <option value="e_passport_10y_48p">ই-পাসপোর্ট ১০ বছর (৪৮ পাতা)</option>
-                  <option value="e_passport_5y_48p">ই-পাসপোর্ট ৫ বছর (৪৮ পাতা)</option>
-                  <option value="e_passport_10y_64p">ই-পাসপোর্ট ১০ বছর (৬৪ পাতা)</option>
-                  <option value="urgent">জরুরি / এক্সপ্রেস ডেলিভারি</option>
-                  <option value="regular">সাধারণ নবায়ন / রি-ইস্যু</option>
+                  {PASSPORT_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
+              </div>
+
+              {/* Online Track ID */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
+                  Online Track ID (অনলাইন ট্র্যাকিং আইডি / OID - ঐচ্ছিক)
+                </label>
+                <input
+                  type="text"
+                  value={onlineTrackId}
+                  onChange={(e) => setOnlineTrackId(e.target.value.toUpperCase())}
+                  placeholder="যেমন: OID-10023456"
+                  className="input-field"
+                  style={{ fontFamily: "monospace", textTransform: "uppercase" }}
+                />
               </div>
 
               {/* Financial Breakdown (কত টাকা নিবে / কত দিছে / বকেয়া) */}
               <div
+                className="financial-box"
                 style={{
-                  background: "rgba(255, 255, 255, 0.02)",
+                  background: "var(--bg-subtle-box)",
                   border: "1px solid var(--border-subtle)",
                   borderRadius: "var(--radius-sm)",
                   padding: "16px",
@@ -815,7 +1087,7 @@ export default function PassportEntryModule() {
                   gap: "14px",
                 }}
               >
-                <div style={{ fontSize: "0.86rem", fontWeight: 700, color: "#a5b4fc" }}>
+                <div className="title" style={{ fontSize: "0.86rem", fontWeight: 700, color: "#818cf8" }}>
                   লেনদেন ও টাকার হিসাব (Payment & Financials):
                 </div>
 
@@ -937,7 +1209,7 @@ export default function PassportEntryModule() {
             left: 0,
             right: 0,
             bottom: 0,
-            background: "rgba(0, 0, 0, 0.78)",
+            background: "var(--modal-backdrop)",
             backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "center",
@@ -947,12 +1219,12 @@ export default function PassportEntryModule() {
           }}
         >
           <div
-            className="glass-panel"
+            className="glass-panel modal-container"
             style={{
               width: "100%",
               maxWidth: "540px",
               padding: "30px",
-              background: "rgba(16, 22, 38, 0.98)",
+              background: "var(--bg-modal)",
               border: "1px solid rgba(99, 102, 241, 0.4)",
             }}
           >
@@ -1002,6 +1274,21 @@ export default function PassportEntryModule() {
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "var(--text-muted)" }}>পাসপোর্ট ধরন:</span>
                 <span>{getPassportTypeLabel(selectedEntry.passportType)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ color: "var(--text-muted)" }}>Online Track ID:</span>
+                <span
+                  style={{
+                    fontWeight: 700,
+                    fontFamily: "monospace",
+                    color: selectedEntry.onlineTrackId ? "#38bdf8" : "var(--text-muted)",
+                    background: selectedEntry.onlineTrackId ? "rgba(56, 189, 248, 0.1)" : "transparent",
+                    padding: selectedEntry.onlineTrackId ? "2px 8px" : "0",
+                    borderRadius: "4px",
+                  }}
+                >
+                  {selectedEntry.onlineTrackId || "যুক্ত করা হয়নি"}
+                </span>
               </div>
 
               {/* Financial Box */}
@@ -1090,6 +1377,339 @@ export default function PassportEntryModule() {
             >
               বন্ধ করুন
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT PASSPORT ENTRY */}
+      {editingEntry && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "var(--modal-backdrop)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
+          }}
+          onClick={() => setEditingEntry(null)}
+        >
+          <div
+            className="modal-container"
+            style={{
+              background: "var(--bg-modal)",
+              border: "1px solid var(--border-subtle)",
+              borderRadius: "var(--radius-lg)",
+              width: "100%",
+              maxWidth: "680px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: "28px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.4)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "20px",
+                borderBottom: "1px solid var(--border-subtle)",
+                paddingBottom: "14px",
+              }}
+            >
+              <div>
+                <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-main)" }}>
+                  পাসপোর্ট এন্ট্রি এডিট করুন
+                </h3>
+                <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                  এন্ট্রি নম্বর: <span style={{ color: "#38bdf8", fontWeight: 700 }}>{editingEntry.entryNumber}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingEntry(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                  fontSize: "1.2rem",
+                  padding: "4px",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {editFormError && (
+              <div
+                style={{
+                  background: "rgba(239, 68, 68, 0.15)",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "10px 14px",
+                  marginBottom: "16px",
+                  color: "#f87171",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <AlertCircle size={16} />
+                <span>{editFormError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateEntrySubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {/* Name */}
+              <div>
+                <label className="label-text">
+                  গ্রাহকের পুরো নাম <span style={{ color: "#f87171" }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="উদাঃ মোঃ রফিকুল ইসলাম"
+                  className="input-field"
+                />
+              </div>
+
+              {/* Mobile & Email */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label className="label-text">
+                    মোবাইল নম্বর <span style={{ color: "#f87171" }}>*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={editMobile}
+                    onChange={(e) => setEditMobile(e.target.value)}
+                    placeholder="017XXXXXXXX"
+                    className="input-field"
+                  />
+                </div>
+                <div>
+                  <label className="label-text">ইমেইল (ঐচ্ছিক)</label>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="example@mail.com"
+                    className="input-field"
+                  />
+                </div>
+              </div>
+
+              {/* NID & Birthdate */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label className="label-text">
+                    জাতীয় পরিচয়পত্র (NID) নম্বর <span style={{ color: "#f87171" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editNid}
+                    onChange={(e) => setEditNid(e.target.value)}
+                    placeholder="১০ অথবা ১৭ সংখ্যার NID"
+                    className="input-field"
+                  />
+                </div>
+                <div>
+                  <label className="label-text">
+                    জন্ম তারিখ <span style={{ color: "#f87171" }}>*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editBirthDate}
+                    onChange={(e) => setEditBirthDate(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+              </div>
+
+              {/* Passport Type */}
+              <div>
+                <label className="label-text">
+                  পাসপোর্ট ধরন <span style={{ color: "#f87171" }}>*</span>
+                </label>
+                <select
+                  value={editPassportType}
+                  onChange={(e) => setEditPassportType(e.target.value)}
+                  className="input-field"
+                  style={{
+                    color: "var(--text-main)",
+                    backgroundColor: "var(--bg-card)",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  {PASSPORT_TYPE_OPTIONS.map((opt) => (
+                    <option
+                      key={opt.value}
+                      value={opt.value}
+                      style={{
+                        backgroundColor: "var(--bg-card)",
+                        color: "var(--text-main)",
+                        padding: "6px",
+                      }}
+                    >
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Online Track ID */}
+              <div>
+                <label className="label-text">Online Track ID (ঐচ্ছিক)</label>
+                <input
+                  type="text"
+                  value={editOnlineTrackId}
+                  onChange={(e) => setEditOnlineTrackId(e.target.value.toUpperCase())}
+                  placeholder="যেমন: OID-10023456"
+                  className="input-field"
+                  style={{ fontFamily: "monospace", textTransform: "uppercase" }}
+                />
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="label-text">বর্তমান স্ট্যাটাস</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="input-field"
+                  style={{
+                    color: "var(--text-main)",
+                    backgroundColor: "var(--bg-card)",
+                  }}
+                >
+                  <option value="submitted">আবেদন জমা (Submitted)</option>
+                  <option value="biometric_pending">বায়োমেট্রিক বাকি (Biometric Pending)</option>
+                  <option value="police_verification">পুলিশ ভেরিফিকেশন (Police Verification)</option>
+                  <option value="ready_for_pickup">পাসপোর্ট রেডি (Ready for Pickup)</option>
+                  <option value="delivered">ডেলিভারি সম্পন্ন (Delivered)</option>
+                </select>
+              </div>
+
+              {/* Financial Box */}
+              <div
+                className="financial-box"
+                style={{
+                  background: "rgba(15, 23, 42, 0.4)",
+                  border: "1px solid rgba(56, 189, 248, 0.2)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "16px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontWeight: 700,
+                    color: "var(--text-main)",
+                    fontSize: "0.92rem",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <DollarSign size={16} color="#38bdf8" />
+                  <span>লেনদেন ও টাকার হিসাব (Payment & Financials)</span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                  <div>
+                    <label className="label-text">কত টাকা নিবে তার কাছে (মোট বিল)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editTotalAmount}
+                      onChange={(e) => setEditTotalAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="৳ 0"
+                      className="input-field"
+                      style={{ fontWeight: 700 }}
+                    />
+                  </div>
+                  <div>
+                    <label className="label-text">সে কত টাকা দিছে (জমা)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editPaidAmount}
+                      onChange={(e) => setEditPaidAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="৳ 0"
+                      className="input-field"
+                      style={{ fontWeight: 700, color: "#34d399" }}
+                    />
+                  </div>
+                </div>
+
+                {/* Due display */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 14px",
+                    borderRadius: "var(--radius-sm)",
+                    background: liveEditDue > 0 ? "rgba(245, 158, 11, 0.12)" : "rgba(16, 185, 129, 0.12)",
+                    border: liveEditDue > 0 ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid rgba(16, 185, 129, 0.3)",
+                  }}
+                >
+                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: liveEditDue > 0 ? "#fbbf24" : "#34d399" }}>
+                    বকেয়া টাকা (Due Amount):
+                  </span>
+                  <span style={{ fontSize: "1.1rem", fontWeight: 800, color: liveEditDue > 0 ? "#fbbf24" : "#34d399" }}>
+                    ৳ {liveEditDue.toLocaleString("en-IN")}
+                  </span>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="label-text">বিশেষ নোট / মন্তব্য (ঐচ্ছিক)</label>
+                <textarea
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="প্রয়োজনীয় কোনো তথ্য বা রেফারেন্স লিখে রাখুন..."
+                  rows={2}
+                  className="input-field"
+                  style={{ resize: "vertical" }}
+                />
+              </div>
+
+              {/* Buttons */}
+              <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingEntry(null)}
+                  className="btn-secondary"
+                  style={{ flex: 1 }}
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingEntry}
+                  className="btn-primary"
+                  style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                >
+                  {updatingEntry ? "আপডেট হচ্ছে..." : "পরিবর্তন সংরক্ষণ করুন"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

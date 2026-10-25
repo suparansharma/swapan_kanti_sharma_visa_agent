@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import Dashboard from "@/components/Dashboard";
@@ -136,6 +136,10 @@ export default function HomePage() {
         return "পাসপোর্ট নবায়ন (Renewal)";
       case "tourist_visa":
         return "ট্যুরিস্ট / ভিজিট ভিসা";
+      case "medical_visa":
+        return "মেডিকেল ভিসা (Medical Visa)";
+      case "medical_attendant":
+        return "মেডিকেল এটেন্ডেন্ট (Medical Attendant)";
       case "student_visa":
         return "স্টুডেন্ট ভিসা";
       case "work_permit":
@@ -208,7 +212,11 @@ export default function HomePage() {
 
   // If user is logged in, show the interactive Visa Operations Dashboard
   if (user) {
-    return <Dashboard />;
+    return (
+      <Suspense fallback={<div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>ড্যাশবোর্ড লোড হচ্ছে...</div>}>
+        <Dashboard />
+      </Suspense>
+    );
   }
 
   return (

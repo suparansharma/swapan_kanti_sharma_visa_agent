@@ -11,6 +11,7 @@ export interface IPassportEntry extends Document {
   totalAmount: number; // কত টাকা নিবে তার কাছে
   paidAmount: number; // সে কত টাকা দিছে
   dueAmount: number; // বকেয়া টাকা
+  onlineTrackId?: string; // Online Track ID (e.g. OID / Application Tracking ID)
   status:
     | "submitted"
     | "biometric_pending"
@@ -76,6 +77,11 @@ const PassportEntrySchema = new Schema<IPassportEntry>(
     dueAmount: {
       type: Number,
       default: 0,
+    },
+    onlineTrackId: {
+      type: String,
+      trim: true,
+      default: "",
     },
     status: {
       type: String,

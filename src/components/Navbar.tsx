@@ -13,10 +13,14 @@ import {
   FileSearch,
   Globe,
   Briefcase,
+  Sun,
+  Moon,
 } from "lucide-react";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function Navbar() {
   const { user, logout, loading } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [dbStatus, setDbStatus] = useState<{
     connected: boolean;
     latencyMs?: number;
@@ -56,7 +60,7 @@ export default function Navbar() {
         width: "100%",
         backdropFilter: "blur(20px)",
         WebkitBackdropFilter: "blur(20px)",
-        backgroundColor: "rgba(7, 9, 14, 0.85)",
+        backgroundColor: "var(--bg-surface)",
         borderBottom: "1px solid var(--border-subtle)",
       }}
     >
@@ -224,6 +228,38 @@ export default function Navbar() {
               <span style={{ color: "#f87171" }}>Offline</span>
             )}
           </div>
+
+          {/* Dark / Light Mode Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            className="btn-secondary"
+            style={{
+              padding: "6px 12px",
+              borderRadius: "var(--radius-full)",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "0.8rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-subtle)",
+              color: "var(--text-main)",
+            }}
+            title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {theme === "dark" ? (
+              <>
+                <Sun size={15} style={{ color: "#f59e0b" }} />
+                <span>Light</span>
+              </>
+            ) : (
+              <>
+                <Moon size={15} style={{ color: "#6366f1" }} />
+                <span>Dark</span>
+              </>
+            )}
+          </button>
 
           {/* User actions */}
           {!loading && (

@@ -86,6 +86,7 @@ export async function POST(request: Request) {
       passportType,
       totalAmount,
       paidAmount,
+      onlineTrackId,
       status,
       deliveryDate,
       notes,
@@ -117,6 +118,7 @@ export async function POST(request: Request) {
       totalAmount: parsedTotal,
       paidAmount: parsedPaid,
       dueAmount: calculatedDue,
+      onlineTrackId: onlineTrackId ? onlineTrackId.trim() : "",
       status: status || "submitted",
       deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
       notes: notes || "",
@@ -153,6 +155,7 @@ export async function PUT(request: Request) {
       passportType,
       totalAmount,
       paidAmount,
+      onlineTrackId,
       status,
       deliveryDate,
       notes,
@@ -169,6 +172,7 @@ export async function PUT(request: Request) {
     if (nid) updateData.nid = nid.trim();
     if (birthDate) updateData.birthDate = birthDate.trim();
     if (passportType) updateData.passportType = passportType;
+    if (onlineTrackId !== undefined) updateData.onlineTrackId = onlineTrackId ? onlineTrackId.trim() : "";
     if (status) updateData.status = status;
     if (deliveryDate !== undefined) updateData.deliveryDate = deliveryDate ? new Date(deliveryDate) : undefined;
     if (notes !== undefined) updateData.notes = notes;

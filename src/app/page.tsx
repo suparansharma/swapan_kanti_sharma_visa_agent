@@ -60,12 +60,7 @@ export default function HomePage() {
   const [trackedApp, setTrackedApp] = useState<TrackedApplication | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
 
-  // Fast Fill Admin Credentials
-  const handleFillAdmin = () => {
-    setEmail("admin@sharma.com");
-    setPassword("232578");
-    setAuthError(null);
-  };
+
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -433,40 +428,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Quick Admin ID banner with 1-click Auto Fill */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "18px",
-                  padding: "10px 14px",
-                  borderRadius: "var(--radius-sm)",
-                  background: "rgba(99, 102, 241, 0.08)",
-                  border: "1px solid rgba(99, 102, 241, 0.25)",
-                }}
-              >
-                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                  অ্যাডমিন আইডি: <strong style={{ color: "#a5b4fc" }}>admin@sharma.com</strong>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleFillAdmin}
-                  style={{
-                    background: "rgba(99, 102, 241, 0.28)",
-                    border: "1px solid rgba(99, 102, 241, 0.5)",
-                    color: "#ffffff",
-                    fontSize: "0.74rem",
-                    padding: "5px 12px",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                    transition: "all 0.2s",
-                  }}
-                >
-                  Auto Fill
-                </button>
-              </div>
+
 
               {/* Error Banner */}
               {authError && (

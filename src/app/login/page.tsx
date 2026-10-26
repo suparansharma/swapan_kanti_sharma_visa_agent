@@ -55,11 +55,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickFill = () => {
-    setEmail("admin@sharma.com");
-    setPassword("232578");
-    setError(null);
-  };
+
 
   return (
     <div
@@ -218,24 +214,6 @@ export default function LoginPage() {
               >
                 Password
               </label>
-              <button
-                type="button"
-                onClick={handleQuickFill}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--accent-cyan)",
-                  fontSize: "0.78rem",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  fontWeight: 500,
-                }}
-              >
-                <Sparkles size={12} />
-                <span>Fill Demo Credentials</span>
-              </button>
             </div>
             <div style={{ position: "relative" }}>
               <Lock

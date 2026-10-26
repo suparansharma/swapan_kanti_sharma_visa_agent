@@ -28,6 +28,7 @@ export async function GET(request: Request) {
         { trackingId: regex },
         { phone: regex },
         { destinationCountry: regex },
+        { visaType: regex },
       ];
     }
 
@@ -91,6 +92,7 @@ export async function POST(request: Request) {
       phone,
       email,
       destinationCountry,
+      visaType,
       serviceType,
       status,
       feeAmount,
@@ -101,17 +103,39 @@ export async function POST(request: Request) {
       notes,
     } = body;
 
-    if (!applicantName || !passportNumber || !phone || !destinationCountry) {
+    const country = (destinationCountry || "India").trim();
+
+    if (!applicantName || !passportNumber || !phone) {
       return NextResponse.json(
-        { error: "Applicant name, passport number, phone, and country are required." },
+        { error: "Applicant name, passport number, and phone are required." },
         { status: 400 }
       );
     }
 
-    // Generate unique tracking ID: e.g. SH-89241
-    const prefix = serviceType?.includes("passport") ? "SH-PASS" : "SH-VISA";
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const trackingId = `${prefix}-${randomSuffix}`;
+    // Generate sequential tracking ID: VS-001, VS-002, ...
+    let nextNum = 1;
+    const latestApp = await VisaApplication.findOne({ trackingId: /^VS-\d+$/ })
+      .sort({ createdAt: -1 })
+      .select("trackingId")
+      .lean();
+
+    if (latestApp && latestApp.trackingId) {
+      const match = latestApp.trackingId.match(/^VS-(\d+)$/);
+      if (match) {
+        nextNum = parseInt(match[1], 10) + 1;
+      }
+    } else {
+      // Fallback: If no VS-xxx records exist yet, count existing applications
+      const count = await VisaApplication.countDocuments();
+      nextNum = count + 1;
+    }
+
+    // Ensure uniqueness in case of concurrent requests or gaps
+    let trackingId = `VS-${String(nextNum).padStart(3, "0")}`;
+    while (await VisaApplication.exists({ trackingId })) {
+      nextNum += 1;
+      trackingId = `VS-${String(nextNum).padStart(3, "0")}`;
+    }
 
     const numTotal = Number(totalAmount ?? feeAmount) || 0;
     const numPaid = Number(paidAmount) || 0;
@@ -130,7 +154,8 @@ export async function POST(request: Request) {
       passportNumber: passportNumber.trim().toUpperCase(),
       phone: phone.trim(),
       email: email ? email.trim() : "",
-      destinationCountry: destinationCountry.trim(),
+      destinationCountry: country,
+      visaType: visaType ? visaType.trim() : "",
       serviceType: serviceType || "tourist_visa",
       status: status || "submitted",
       feeAmount: numTotal,
@@ -166,6 +191,7 @@ export async function PUT(request: Request) {
       phone,
       email,
       destinationCountry,
+      visaType,
       serviceType,
       status,
       feeStatus,
@@ -185,6 +211,7 @@ export async function PUT(request: Request) {
     if (phone !== undefined) updateFields.phone = phone.trim();
     if (email !== undefined) updateFields.email = email ? email.trim() : "";
     if (destinationCountry !== undefined) updateFields.destinationCountry = destinationCountry.trim();
+    if (visaType !== undefined) updateFields.visaType = visaType.trim();
     if (serviceType !== undefined) updateFields.serviceType = serviceType;
     if (status) updateFields.status = status;
     if (feeStatus) updateFields.feeStatus = feeStatus;

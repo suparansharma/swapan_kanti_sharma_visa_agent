@@ -446,7 +446,7 @@ export default function HomePage() {
                   border: "1px solid rgba(99, 102, 241, 0.25)",
                 }}
               >
-                <div style={{ fontSize: "0.8rem", color: "#cbd5e1" }}>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                   অ্যাডমিন আইডি: <strong style={{ color: "#a5b4fc" }}>admin@sharma.com</strong>
                 </div>
                 <button
@@ -728,7 +728,7 @@ export default function HomePage() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleTrackSubmit();
                 }}
-                placeholder="যেমন: SH-PASS-1021 অথবা পাসপোর্ট নং A08492014"
+                placeholder="যেমন: VS-001 অথবা পাসপোর্ট নং A08492014"
                 className="input-field"
                 style={{ paddingLeft: "42px", height: "48px", fontSize: "0.95rem" }}
               />
@@ -764,10 +764,10 @@ export default function HomePage() {
           >
             <span>ডেমো ফাইল দিয়ে ট্র্যাকিং দেখুন:</span>
             {[
-              { id: "SH-PASS-1021", label: "পাসপোর্ট রিনিউয়াল" },
+              { id: "VS-001", label: "ইন্ডিয়ান ভিসা" },
+              { id: "PS-001", label: "পাসপোর্ট সার্ভিস" },
               { id: "SH-VISA-3042", label: "কানাডা স্টুডেন্ট ভিসা" },
               { id: "SH-VISA-5089", label: "ইউকে ট্যুরিস্ট ভিসা" },
-              { id: "SH-VISA-7123", label: "সৌদি ওয়ার্ক পারমিট" },
             ].map((pill) => (
               <button
                 key={pill.id}
@@ -779,7 +779,7 @@ export default function HomePage() {
                 style={{
                   background: "rgba(255, 255, 255, 0.05)",
                   border: "1px solid var(--border-subtle)",
-                  color: "#cbd5e1",
+                  color: "var(--text-secondary)",
                   padding: "4px 10px",
                   borderRadius: "6px",
                   fontSize: "0.76rem",
@@ -857,7 +857,7 @@ export default function HomePage() {
                   </div>
                   <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                     ট্র্যাকিং আইডি: <strong style={{ color: "#38bdf8" }}>{trackedApp.trackingId}</strong> &bull; পাসপোর্ট নম্বর:{" "}
-                    <strong style={{ color: "#cbd5e1" }}>{trackedApp.passportNumber}</strong>
+                    <strong style={{ color: "var(--text-main)" }}>{trackedApp.passportNumber}</strong>
                   </div>
                 </div>
 

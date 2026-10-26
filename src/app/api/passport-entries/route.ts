@@ -103,9 +103,30 @@ export async function POST(request: Request) {
     const parsedPaid = Math.max(0, Number(paidAmount) || 0);
     const calculatedDue = Math.max(0, parsedTotal - parsedPaid);
 
-    // Generate unique entry serial: e.g. PS-10492
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const entryNumber = `PS-${randomSuffix}`;
+    // Generate sequential entry serial: PS-001, PS-002, ...
+    let nextNum = 1;
+    const latestEntry = await PassportEntry.findOne({ entryNumber: /^PS-\d+$/ })
+      .sort({ createdAt: -1 })
+      .select("entryNumber")
+      .lean();
+
+    if (latestEntry && latestEntry.entryNumber) {
+      const match = latestEntry.entryNumber.match(/^PS-(\d+)$/);
+      if (match) {
+        nextNum = parseInt(match[1], 10) + 1;
+      }
+    } else {
+      // Fallback: If no PS-xxx records exist yet, count existing entries
+      const count = await PassportEntry.countDocuments();
+      nextNum = count + 1;
+    }
+
+    // Ensure uniqueness in case of concurrent requests or gaps
+    let entryNumber = `PS-${String(nextNum).padStart(3, "0")}`;
+    while (await PassportEntry.exists({ entryNumber })) {
+      nextNum += 1;
+      entryNumber = `PS-${String(nextNum).padStart(3, "0")}`;
+    }
 
     const newEntry = await PassportEntry.create({
       entryNumber,

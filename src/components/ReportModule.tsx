@@ -938,7 +938,7 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
                       <tr key={v._id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                         <td style={{ padding: "12px 16px", fontWeight: 700, color: "#38bdf8" }}>{v.trackingId}</td>
                         <td style={{ padding: "12px 16px", fontWeight: 600 }}>{v.applicantName}</td>
-                        <td style={{ padding: "12px 16px", fontFamily: "monospace", color: "#cbd5e1" }}>{v.passportNumber}</td>
+                        <td style={{ padding: "12px 16px", fontFamily: "monospace", fontWeight: 700, color: "var(--text-main)" }}>{v.passportNumber}</td>
                         <td style={{ padding: "12px 16px", color: "var(--text-secondary)" }}>{v.phone}</td>
                         <td style={{ padding: "12px 16px", color: "#34d399", fontWeight: 600 }}>{v.destinationCountry}</td>
                         <td style={{ padding: "12px 16px", fontSize: "0.8rem", color: "var(--text-secondary)" }}>

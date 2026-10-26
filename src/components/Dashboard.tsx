@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import PassportEntryModule from "@/components/PassportEntryModule";
 import ReportModule from "@/components/ReportModule";
+import HRMModule from "@/components/HRMModule";
 import {
   Plane,
   FileText,
@@ -49,6 +50,7 @@ interface VisaApplicationItem {
   phone: string;
   email?: string;
   destinationCountry: string;
+  visaType?: string;
   serviceType: string;
   status: string;
   applicationDate: string;
@@ -73,12 +75,25 @@ export default function Dashboard() {
     | "reports"
     | "passport_reports"
     | "visa_reports"
+    | "hrm"
+    | "hrm_employees"
+    | "hrm_departments"
+    | "hrm_designations"
     | null;
 
   // Active navigation tab
-  // Options: 'passport_entry' | 'overview' | 'visa_applications' | 'reports' | 'passport_reports' | 'visa_reports'
+  // Options: 'passport_entry' | 'overview' | 'visa_applications' | 'reports' | 'passport_reports' | 'visa_reports' | 'hrm' | 'hrm_employees' | 'hrm_departments' | 'hrm_designations'
   const [activeTab, setActiveTabState] = useState<
-    "passport_entry" | "overview" | "visa_applications" | "reports" | "passport_reports" | "visa_reports"
+    | "passport_entry"
+    | "overview"
+    | "visa_applications"
+    | "reports"
+    | "passport_reports"
+    | "visa_reports"
+    | "hrm"
+    | "hrm_employees"
+    | "hrm_departments"
+    | "hrm_designations"
   >(tabFromUrl || "passport_entry");
 
   // Sync tab with URL
@@ -96,6 +111,10 @@ export default function Dashboard() {
       | "reports"
       | "passport_reports"
       | "visa_reports"
+      | "hrm"
+      | "hrm_employees"
+      | "hrm_departments"
+      | "hrm_designations"
   ) => {
     setActiveTabState(tab);
     router.push(`/?tab=${tab}`, { scroll: false });
@@ -105,6 +124,7 @@ export default function Dashboard() {
   const [passportOpen, setPassportOpen] = useState(true);
   const [visaOpen, setVisaOpen] = useState(true);
   const [reportsOpen, setReportsOpen] = useState(true);
+  const [hrmOpen, setHrmOpen] = useState(true);
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
 
   // Visa applications state
@@ -816,6 +836,185 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
+
+            {/* 4. HRM MODULE ACCORDION (Department, Designation, Employee) */}
+            <div style={{ marginTop: "10px" }}>
+              <button
+                type="button"
+                onClick={() => setHrmOpen(!hrmOpen)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "rgba(255, 255, 255, 0.03)",
+                  color: "var(--text-main)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: "0.88rem",
+                  transition: "background 0.2s",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <Users size={18} style={{ color: "#c084fc" }} />
+                  <span>এইচআরএম মডিউল (HRM)</span>
+                </div>
+                {hrmOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </button>
+
+              {hrmOpen && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "2px",
+                    paddingLeft: "16px",
+                    marginTop: "4px",
+                    borderLeft: "2px solid rgba(168, 85, 247, 0.3)",
+                    marginLeft: "18px",
+                  }}
+                >
+                  {/* Sub-item 1: Employee */}
+                  <button
+                    onClick={() => setActiveTab("hrm_employees")}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background:
+                        activeTab === "hrm_employees" || activeTab === "hrm"
+                          ? "var(--primary-gradient)"
+                          : "transparent",
+                      color:
+                        activeTab === "hrm_employees" || activeTab === "hrm"
+                          ? "#ffffff"
+                          : "var(--text-secondary)",
+                      fontWeight:
+                        activeTab === "hrm_employees" || activeTab === "hrm" ? 700 : 500,
+                      cursor: "pointer",
+                      fontSize: "0.82rem",
+                      textAlign: "left",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <UserIcon size={15} />
+                      <span>Employee (কর্মী তালিকা ও এন্ট্রি)</span>
+                    </div>
+                    {(activeTab === "hrm_employees" || activeTab === "hrm") && (
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: "rgba(255, 255, 255, 0.2)",
+                          color: "#fff",
+                          fontWeight: 700,
+                        }}
+                      >
+                        Active
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Sub-item 2: Department */}
+                  <button
+                    onClick={() => setActiveTab("hrm_departments")}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background:
+                        activeTab === "hrm_departments"
+                          ? "var(--primary-gradient)"
+                          : "transparent",
+                      color:
+                        activeTab === "hrm_departments"
+                          ? "#ffffff"
+                          : "var(--text-secondary)",
+                      fontWeight: activeTab === "hrm_departments" ? 700 : 500,
+                      cursor: "pointer",
+                      fontSize: "0.82rem",
+                      textAlign: "left",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Building2 size={15} />
+                      <span>Department (ডিপার্টমেন্ট)</span>
+                    </div>
+                    {activeTab === "hrm_departments" && (
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: "rgba(255, 255, 255, 0.2)",
+                          color: "#fff",
+                          fontWeight: 700,
+                        }}
+                      >
+                        Active
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Sub-item 3: Designation */}
+                  <button
+                    onClick={() => setActiveTab("hrm_designations")}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background:
+                        activeTab === "hrm_designations"
+                          ? "var(--primary-gradient)"
+                          : "transparent",
+                      color:
+                        activeTab === "hrm_designations"
+                          ? "#ffffff"
+                          : "var(--text-secondary)",
+                      fontWeight: activeTab === "hrm_designations" ? 700 : 500,
+                      cursor: "pointer",
+                      fontSize: "0.82rem",
+                      textAlign: "left",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Briefcase size={15} />
+                      <span>Designation (পদবী)</span>
+                    </div>
+                    {activeTab === "hrm_designations" && (
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: "rgba(255, 255, 255, 0.2)",
+                          color: "#fff",
+                          fontWeight: 700,
+                        }}
+                      >
+                        Active
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
           </nav>
         </div>
 
@@ -1198,9 +1397,8 @@ export default function Dashboard() {
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>ট্র্যাকিং আইডি</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>আবেদনকারীর নাম</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>পাসপোর্ট নং</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>গন্তব্য দেশ</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>চুক্তি টাকা</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>জমা টাকা</th>
+                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>মোবাইল নম্বর</th>
+                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>সার্ভিস ধরন</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>বকেয়া টাকা</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>স্ট্যাটাস</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)", textAlign: "right" }}>একশন</th>
@@ -1211,14 +1409,51 @@ export default function Dashboard() {
                       const total = app.totalAmount ?? app.feeAmount ?? 0;
                       const paid = app.paidAmount ?? (app.feeStatus === "paid" ? total : 0);
                       const due = app.dueAmount ?? Math.max(0, total - paid);
+                      const serviceLabel =
+                        app.serviceType === "tourist_visa"
+                          ? "ট্যুরিস্ট ভিসা"
+                          : app.serviceType === "medical_visa"
+                          ? "মেডিকেল ভিসা"
+                          : app.serviceType === "medical_attendant"
+                          ? "মেডিকেল এটেন্ডেন্ট"
+                          : app.serviceType === "student_visa"
+                          ? "স্টুডেন্ট ভিসা"
+                          : app.serviceType === "work_permit"
+                          ? "ওয়ার্ক পারমিট"
+                          : app.serviceType === "business_visa"
+                          ? "বিজনেস ভিসা"
+                          : app.serviceType;
                       return (
                         <tr key={app._id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                           <td style={{ padding: "14px 18px", fontWeight: 700, color: "#38bdf8" }}>{app.trackingId}</td>
                           <td style={{ padding: "14px 18px", fontWeight: 600 }}>{app.applicantName}</td>
-                          <td style={{ padding: "14px 18px", fontFamily: "monospace", color: "#cbd5e1" }}>{app.passportNumber}</td>
-                          <td style={{ padding: "14px 18px", fontWeight: 600, color: "#34d399" }}>{app.destinationCountry}</td>
-                          <td style={{ padding: "14px 18px", fontWeight: 700 }}>৳ {total.toLocaleString("en-IN")}</td>
-                          <td style={{ padding: "14px 18px", fontWeight: 700, color: "#34d399" }}>৳ {paid.toLocaleString("en-IN")}</td>
+                          <td style={{ padding: "14px 18px", fontFamily: "monospace", fontWeight: 700, color: "var(--text-main)" }}>
+                            {app.passportNumber}
+                          </td>
+                          <td style={{ padding: "14px 18px", fontWeight: 500, color: "var(--text-secondary)" }}>
+                            {app.phone}
+                          </td>
+                          <td style={{ padding: "14px 18px" }}>
+                            <div style={{ fontWeight: 600, color: "var(--primary-light, #818cf8)" }}>
+                              {serviceLabel}
+                            </div>
+                            {app.visaType && (
+                              <div
+                                style={{
+                                  fontSize: "0.74rem",
+                                  color: "var(--text-muted)",
+                                  maxWidth: "220px",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  marginTop: "2px",
+                                }}
+                                title={app.visaType}
+                              >
+                                {app.visaType}
+                              </div>
+                            )}
+                          </td>
                           <td style={{ padding: "14px 18px", fontWeight: 700, color: due > 0 ? "#fbbf24" : "#34d399" }}>
                             ৳ {due.toLocaleString("en-IN")}
                           </td>
@@ -1288,6 +1523,17 @@ export default function Dashboard() {
         {activeTab === "reports" && <ReportModule initialSection="all" />}
         {activeTab === "passport_reports" && <ReportModule initialSection="passport" />}
         {activeTab === "visa_reports" && <ReportModule initialSection="visa" />}
+
+        {/* VIEW 5: HRM MODULE (EMPLOYEE, DEPARTMENT, DESIGNATION) */}
+        {(activeTab === "hrm" || activeTab === "hrm_employees") && (
+          <HRMModule initialSection="employees" />
+        )}
+        {activeTab === "hrm_departments" && (
+          <HRMModule initialSection="departments" />
+        )}
+        {activeTab === "hrm_designations" && (
+          <HRMModule initialSection="designations" />
+        )}
       </main>
 
       {/* MODAL: ADD VISA APPLICATION */}
@@ -1589,7 +1835,7 @@ export default function Dashboard() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <div>
                   <div style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>পাসপোর্ট নম্বর</div>
-                  <div style={{ fontFamily: "monospace", fontWeight: 700, color: "#cbd5e1" }}>
+                  <div style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--text-main)" }}>
                     {selectedVisa.passportNumber}
                   </div>
                 </div>

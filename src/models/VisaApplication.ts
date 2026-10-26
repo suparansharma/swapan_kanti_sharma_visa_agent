@@ -7,15 +7,8 @@ export interface IVisaApplication extends Document {
   phone: string;
   email?: string;
   destinationCountry: string;
-  serviceType:
-    | "passport_new"
-    | "passport_renewal"
-    | "tourist_visa"
-    | "student_visa"
-    | "work_permit"
-    | "business_visa"
-    | "medical_visa"
-    | "medical_attendant";
+  visaType?: string;
+  serviceType: string;
   status:
     | "submitted"
     | "document_verification"
@@ -69,21 +62,16 @@ const VisaApplicationSchema = new Schema<IVisaApplication>(
     },
     destinationCountry: {
       type: String,
-      required: [true, "Destination country is required"],
+      default: "India",
       trim: true,
+    },
+    visaType: {
+      type: String,
+      trim: true,
+      default: "",
     },
     serviceType: {
       type: String,
-      enum: [
-        "passport_new",
-        "passport_renewal",
-        "tourist_visa",
-        "student_visa",
-        "work_permit",
-        "business_visa",
-        "medical_visa",
-        "medical_attendant",
-      ],
       default: "tourist_visa",
     },
     status: {

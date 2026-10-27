@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import PassportEntryModule from "@/components/PassportEntryModule";
+import PassportCostModule from "@/components/PassportCostModule";
+import VisaCostModule from "@/components/VisaCostModule";
 import ReportModule from "@/components/ReportModule";
 import HRMModule from "@/components/HRMModule";
 import ProfileView from "@/components/ProfileView";
@@ -73,6 +75,8 @@ interface VisaApplicationItem {
   totalAmount?: number;
   paidAmount?: number;
   dueAmount?: number;
+  costAmount?: number;
+  profitAmount?: number;
   feeStatus: "paid" | "partial" | "pending";
   notes?: string;
   createdBy?: { _id: string; name: string; email?: string } | string;
@@ -90,8 +94,10 @@ export default function Dashboard() {
 
   const tabFromUrl = searchParams.get("tab") as
     | "passport_entry"
+    | "passport_cost"
     | "overview"
     | "visa_applications"
+    | "visa_cost"
     | "reports"
     | "passport_reports"
     | "visa_reports"
@@ -102,11 +108,13 @@ export default function Dashboard() {
     | null;
 
   // Active navigation tab
-  // Options: 'passport_entry' | 'overview' | 'visa_applications' | 'reports' | 'passport_reports' | 'visa_reports' | 'hrm' | 'hrm_employees' | 'hrm_departments' | 'hrm_designations' | 'profile'
+  // Options: 'passport_entry' | 'passport_cost' | 'overview' | 'visa_applications' | 'visa_cost' | 'reports' | 'passport_reports' | 'visa_reports' | 'hrm' | 'hrm_employees' | 'hrm_departments' | 'hrm_designations' | 'profile'
   const [activeTab, setActiveTabState] = useState<
     | "passport_entry"
+    | "passport_cost"
     | "overview"
     | "visa_applications"
+    | "visa_cost"
     | "reports"
     | "passport_reports"
     | "visa_reports"
@@ -127,8 +135,10 @@ export default function Dashboard() {
   const setActiveTab = (
     tab:
       | "passport_entry"
+      | "passport_cost"
       | "overview"
       | "visa_applications"
+      | "visa_cost"
       | "reports"
       | "passport_reports"
       | "visa_reports"
@@ -156,6 +166,7 @@ export default function Dashboard() {
     totalContractAmount: 0,
     totalCollectedAmount: 0,
     totalDueAmount: 0,
+    totalProfitAmount: 0,
     approved: 0,
     processing: 0,
     ready: 0,
@@ -164,6 +175,7 @@ export default function Dashboard() {
   const [searchVisa, setSearchVisa] = useState("");
   const [filterVisaStatus, setFilterVisaStatus] = useState("all");
   const [showAddVisaModal, setShowAddVisaModal] = useState(false);
+  const [addVisaError, setAddVisaError] = useState<string | null>(null);
   const [selectedVisa, setSelectedVisa] = useState<VisaApplicationItem | null>(null);
 
   // New Visa form state
@@ -228,15 +240,79 @@ export default function Dashboard() {
     }
   };
 
+  // Visa Cost Rates Map (Dynamic costing based on Service Type)
+  const [visaCostRates, setVisaCostRates] = useState<
+    Record<string, { totalCost: number; clientFee: number; title: string }>
+  >({});
+
+  const fetchVisaCostRates = async () => {
+    try {
+      const res = await fetch("/api/visa-costs");
+      if (res.ok) {
+        const data = await res.json();
+        const map: Record<string, { totalCost: number; clientFee: number; title: string }> = {};
+        (data.costs || []).forEach((c: any) => {
+          map[c.visaType] = {
+            totalCost: Number(c.totalCost) || 0,
+            clientFee: Number(c.clientFee) || Number(c.totalCost) || 0,
+            title: c.title || "",
+          };
+        });
+        setVisaCostRates(map);
+
+        // Pre-fill initial form amount if empty
+        const initialRate = map[serviceType || "tourist_visa"];
+        if (initialRate && (!totalAmount || Number(totalAmount) === 0)) {
+          setTotalAmount(initialRate.clientFee || initialRate.totalCost);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching visa cost rates:", err);
+    }
+  };
+
   useEffect(() => {
     fetchVisaApplications();
+    fetchVisaCostRates();
   }, [filterVisaStatus]);
+
+  const handleOpenAddVisa = () => {
+    setShowAddVisaModal(true);
+    setAddVisaError(null);
+    const rate = visaCostRates[serviceType || "tourist_visa"];
+    if (rate && (!totalAmount || Number(totalAmount) === 0)) {
+      setTotalAmount(rate.clientFee || rate.totalCost);
+    }
+  };
+
+  const handleServiceTypeChange = (newService: string) => {
+    setServiceType(newService);
+    const rate = visaCostRates[newService];
+    if (rate) {
+      const minFee = rate.clientFee || rate.totalCost || 0;
+      setTotalAmount(minFee);
+    }
+    if (newService === "medical_visa" && (!visaType || visaType.includes("ট্যুরিস্ট") || visaType.includes("Tourist"))) {
+      setVisaType("মেডিকেল পেশেন্ট (Medical Patient)");
+    } else if (newService === "medical_attendant") {
+      setVisaType("মেডিকেল এটেন্ডেন্ট (Medical Attendant)");
+    } else if (newService === "tourist_visa" && (visaType.includes("মেডিকেল") || visaType.includes("Medical"))) {
+      setVisaType("ট্যুরিস্ট ভিসা (Tourist Visa)");
+    }
+    if (!isMedicalPatient(newService, visaType)) {
+      const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === status);
+      if (isCurrentMedStatus) {
+        setStatus("submitted");
+      }
+    }
+  };
 
   // Create Visa Application
   const handleCreateVisa = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setCreatingVisa(true);
+      setAddVisaError(null);
       const res = await fetch("/api/visa-applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -256,20 +332,26 @@ export default function Dashboard() {
           notes,
         }),
       });
-      if (res.ok) {
+      const data = await res.json();
+      if (res.ok && data.success) {
         setShowAddVisaModal(false);
+        setAddVisaError(null);
         setApplicantName("");
         setPassportNumber("");
         setPhone("");
         setEmail("");
         setVisaType("");
-        setTotalAmount("");
+        const initialRate = visaCostRates["tourist_visa"];
+        setTotalAmount(initialRate ? (initialRate.clientFee || initialRate.totalCost) : "");
         setPaidAmount("");
         setNotes("");
         fetchVisaApplications();
+      } else {
+        setAddVisaError(data.error || "ভিসা আবেদন সংরক্ষণ ব্যর্থ হয়েছে।");
       }
     } catch (err) {
       console.error("Visa create error:", err);
+      setAddVisaError("সার্ভার সমস্যা, আবার চেষ্টা করুন।");
     } finally {
       setCreatingVisa(false);
     }
@@ -535,18 +617,60 @@ export default function Dashboard() {
                       <FileText size={15} />
                       <span>Passport Entry</span>
                     </div>
-                    <span
-                      style={{
-                        fontSize: "0.68rem",
-                        padding: "2px 6px",
-                        borderRadius: "4px",
-                        background: activeTab === "passport_entry" ? "rgba(255, 255, 255, 0.2)" : "rgba(16, 185, 129, 0.15)",
-                        color: activeTab === "passport_entry" ? "#fff" : "#34d399",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Active
-                    </span>
+                    {activeTab === "passport_entry" && (
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: "rgba(255, 255, 255, 0.2)",
+                          color: "#fff",
+                          fontWeight: 700,
+                        }}
+                      >
+                        Active
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Passport Cost / Rates List (NEW SUB-MODULE) */}
+                  <button
+                    onClick={() => setActiveTab("passport_cost")}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background:
+                        activeTab === "passport_cost" ? "var(--primary-gradient)" : "transparent",
+                      color: activeTab === "passport_cost" ? "#ffffff" : "var(--text-secondary)",
+                      fontWeight: activeTab === "passport_cost" ? 700 : 500,
+                      cursor: "pointer",
+                      fontSize: "0.82rem",
+                      textAlign: "left",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <DollarSign size={15} />
+                      <span>পাসপোর্ট খরচের তালিকা</span>
+                    </div>
+                    {activeTab === "passport_cost" && (
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: "rgba(255, 255, 255, 0.2)",
+                          color: "#fff",
+                          fontWeight: 700,
+                        }}
+                      >
+                        Active
+                      </span>
+                    )}
                   </button>
                 </div>
               )}
@@ -616,6 +740,46 @@ export default function Dashboard() {
                       <span>ভিসা আবেদন তালিকা</span>
                     </div>
                     {activeTab === "visa_applications" && (
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: "rgba(255, 255, 255, 0.2)",
+                          color: "#fff",
+                          fontWeight: 700,
+                        }}
+                      >
+                        Active
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Visa Cost / Rates List (NEW SUB-MODULE) */}
+                  <button
+                    onClick={() => setActiveTab("visa_cost")}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background:
+                        activeTab === "visa_cost" ? "var(--primary-gradient)" : "transparent",
+                      color: activeTab === "visa_cost" ? "#ffffff" : "var(--text-secondary)",
+                      fontWeight: activeTab === "visa_cost" ? 700 : 500,
+                      cursor: "pointer",
+                      fontSize: "0.82rem",
+                      textAlign: "left",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <DollarSign size={15} />
+                      <span>ভিসা খরচের তালিকা</span>
+                    </div>
+                    {activeTab === "visa_cost" && (
                       <span
                         style={{
                           fontSize: "0.68rem",
@@ -1072,6 +1236,12 @@ export default function Dashboard() {
         {/* VIEW 1: PASSPORT ENTRY SUB-MODULE (PRIMARY REQUEST) */}
         {activeTab === "passport_entry" && <PassportEntryModule />}
 
+        {/* VIEW 1.2: PASSPORT COST & RATES SUB-MODULE */}
+        {activeTab === "passport_cost" && <PassportCostModule />}
+
+        {/* VIEW 1.3: VISA COST & RATES SUB-MODULE */}
+        {activeTab === "visa_cost" && <VisaCostModule />}
+
         {/* VIEW 2: OVERVIEW SUMMARY */}
         {activeTab === "overview" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
@@ -1120,6 +1290,40 @@ export default function Dashboard() {
                 </p>
               </div>
 
+              {/* Passport Cost List Quick Jump Card */}
+              <div
+                onClick={() => setActiveTab("passport_cost")}
+                className="glass-panel"
+                style={{
+                  padding: "24px",
+                  cursor: "pointer",
+                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                  transition: "all 0.2s",
+                }}
+              >
+                <div
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "10px",
+                    background: "rgba(16, 185, 129, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#34d399",
+                    marginBottom: "14px",
+                  }}
+                >
+                  <DollarSign size={24} />
+                </div>
+                <h3 style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--text-main)", marginBottom: "6px" }}>
+                  পাসপোর্ট খরচের তালিকা ➔
+                </h3>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", lineHeight: 1.5 }}>
+                  পাসপোর্ট ধরন অনুযায়ী সরকারি ফি, ব্যাংক চার্জ, অফিস খরচ ও মোট ব্যয়ের রেট কার্ড।
+                </p>
+              </div>
+
               {/* Visa Applications Quick Jump Card */}
               <div
                 onClick={() => setActiveTab("visa_applications")}
@@ -1151,6 +1355,40 @@ export default function Dashboard() {
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", lineHeight: 1.5 }}>
                   কানাডা, যুক্তরাজ্য, যুক্তরাষ্ট্র ও মধ্যপ্রাচ্যের ভিসা ফাইল অগ্রগতি ও স্ট্যাটাস ট্র্যাকিং।
+                </p>
+              </div>
+
+              {/* Visa Cost List Quick Jump Card */}
+              <div
+                onClick={() => setActiveTab("visa_cost")}
+                className="glass-panel"
+                style={{
+                  padding: "24px",
+                  cursor: "pointer",
+                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                  transition: "all 0.2s",
+                }}
+              >
+                <div
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "10px",
+                    background: "rgba(16, 185, 129, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#34d399",
+                    marginBottom: "14px",
+                  }}
+                >
+                  <DollarSign size={24} />
+                </div>
+                <h3 style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--text-main)", marginBottom: "6px" }}>
+                  ভিসা খরচের তালিকা ➔
+                </h3>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", lineHeight: 1.5 }}>
+                  দেশ ও ভিসা ক্যাটাগরি অনুযায়ী এম্বাসি ফি, VFS/IVAC চার্জ, প্রসেসিং ও প্যাকেজ রেট কার্ড।
                 </p>
               </div>
 
@@ -1238,7 +1476,7 @@ export default function Dashboard() {
                   <span>রিফ্রেশ</span>
                 </button>
                 <button
-                  onClick={() => setShowAddVisaModal(true)}
+                  onClick={handleOpenAddVisa}
                   className="btn-primary"
                   style={{
                     display: "flex",
@@ -1299,6 +1537,19 @@ export default function Dashboard() {
                 </div>
                 <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginTop: "4px" }}>
                   পাওনা টাকা
+                </div>
+              </div>
+
+              {/* Total Profit Amount */}
+              <div className="glass-panel" style={{ padding: "20px", borderLeft: "4px solid #10b981" }}>
+                <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginBottom: "6px" }}>
+                  মোট আনুমানিক লাভ (Total Profit)
+                </div>
+                <div style={{ fontSize: "1.85rem", fontWeight: 900, color: "#34d399" }}>
+                  ৳ {(visaStats.totalProfitAmount || 0).toLocaleString("en-IN")}
+                </div>
+                <div style={{ fontSize: "0.74rem", color: "#34d399", marginTop: "4px" }}>
+                  ভিসা ফাইল প্রতি নিট মুনাফা
                 </div>
               </div>
 
@@ -1400,6 +1651,7 @@ export default function Dashboard() {
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>পাসপোর্ট নং</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>মোবাইল নম্বর</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>সার্ভিস ধরন</th>
+                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>টাকা ও লাভ (Profit)</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>বকেয়া টাকা</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>স্ট্যাটাস</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>তৈরি করেছেন</th>
@@ -1481,6 +1733,28 @@ export default function Dashboard() {
                                 {formatVisaTypeDisplay(app.visaType)}
                               </div>
                             )}
+                          </td>
+                          {/* Total Amount & Profit Column */}
+                          <td style={{ padding: "14px 18px" }}>
+                            <div
+                              style={{
+                                fontWeight: 800,
+                                color: (app.profitAmount || 0) > 0 ? "#34d399" : "var(--text-muted)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                padding: "3px 8px",
+                                borderRadius: "6px",
+                                background: (app.profitAmount || 0) > 0 ? "rgba(16, 185, 129, 0.12)" : "rgba(255, 255, 255, 0.04)",
+                                border: (app.profitAmount || 0) > 0 ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--border-subtle)",
+                                fontSize: "0.84rem",
+                              }}
+                            >
+                              {(app.profitAmount || 0) > 0 ? `+৳ ${(app.profitAmount || 0).toLocaleString("en-IN")}` : "৳ ০"}
+                            </div>
+                            <div style={{ fontSize: "0.74rem", color: "var(--text-secondary)", marginTop: "2px", fontWeight: 600 }}>
+                              মোট: ৳ {total.toLocaleString("en-IN")}
+                            </div>
                           </td>
                           <td style={{ padding: "14px 18px", fontWeight: 700, color: due > 0 ? "#fbbf24" : "#34d399" }}>
                             ৳ {due.toLocaleString("en-IN")}
@@ -1616,8 +1890,23 @@ export default function Dashboard() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px" }}>
               <h2 style={{ fontSize: "1.3rem", fontWeight: 800 }}>নতুন ভিসা ফাইল যোগ করুন</h2>
-              <button onClick={() => setShowAddVisaModal(false)} style={{ background: "transparent", border: "none", color: "var(--text-muted)", fontSize: "1.2rem", cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowAddVisaModal(false); setAddVisaError(null); }} style={{ background: "transparent", border: "none", color: "var(--text-muted)", fontSize: "1.2rem", cursor: "pointer" }}>✕</button>
             </div>
+            {addVisaError && (
+              <div
+                style={{
+                  background: "rgba(239, 68, 68, 0.15)",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  color: "#fca5a5",
+                  padding: "10px 14px",
+                  borderRadius: "6px",
+                  fontSize: "0.85rem",
+                  marginBottom: "14px",
+                }}
+              >
+                {addVisaError}
+              </div>
+            )}
             <form onSubmit={handleCreateVisa} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div>
                 <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
@@ -1669,23 +1958,7 @@ export default function Dashboard() {
                   </label>
                   <select
                     value={serviceType}
-                    onChange={(e) => {
-                      const newService = e.target.value;
-                      setServiceType(newService);
-                      if (newService === "medical_visa" && (!visaType || visaType.includes("ট্যুরিস্ট") || visaType.includes("Tourist"))) {
-                        setVisaType("মেডিকেল পেশেন্ট (Medical Patient)");
-                      } else if (newService === "medical_attendant") {
-                        setVisaType("মেডিকেল এটেন্ডেন্ট (Medical Attendant)");
-                      } else if (newService === "tourist_visa" && (visaType.includes("মেডিকেল") || visaType.includes("Medical"))) {
-                        setVisaType("ট্যুরিস্ট ভিসা (Tourist Visa)");
-                      }
-                      if (!isMedicalPatient(newService, visaType)) {
-                        const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === status);
-                        if (isCurrentMedStatus) {
-                          setStatus("submitted");
-                        }
-                      }
-                    }}
+                    onChange={(e) => handleServiceTypeChange(e.target.value)}
                     className="input-field"
                   >
                     <option value="tourist_visa">ট্যুরিস্ট ভিসা (Tourist Visa)</option>
@@ -1768,9 +2041,9 @@ export default function Dashboard() {
                       type="number"
                       value={totalAmount}
                       onChange={(e) => setTotalAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="যেমন: 25000"
+                      placeholder="যেমন: 3000"
                       required
-                      min={0}
+                      min={visaCostRates[serviceType]?.clientFee || 0}
                       className="input-field"
                     />
                   </div>
@@ -2029,7 +2302,7 @@ export default function Dashboard() {
                     <div style={{ fontSize: "0.86rem", fontWeight: 700, color: "#818cf8", marginBottom: "12px" }}>
                       লেনদেন ও হিসাব বিবরণী:
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", textAlign: "center" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: (selectedVisa.profitAmount !== undefined && selectedVisa.profitAmount > 0) ? "1fr 1fr 1fr 1fr" : "1fr 1fr 1fr", gap: "10px", textAlign: "center" }}>
                       <div style={{ background: "rgba(255,255,255,0.03)", padding: "10px", borderRadius: "6px" }}>
                         <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>মোট চুক্তি বিল</div>
                         <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "var(--text-main)", marginTop: "4px" }}>
@@ -2048,6 +2321,14 @@ export default function Dashboard() {
                           ৳ {due.toLocaleString("en-IN")}
                         </div>
                       </div>
+                      {(selectedVisa.profitAmount !== undefined && selectedVisa.profitAmount > 0) && (
+                        <div style={{ background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.3)", padding: "10px", borderRadius: "6px" }}>
+                          <div style={{ fontSize: "0.72rem", color: "#34d399", fontWeight: 700 }}>আনুমানিক লাভ</div>
+                          <div style={{ fontWeight: 900, fontSize: "1.05rem", color: "#34d399", marginTop: "4px" }}>
+                            +৳ {Number(selectedVisa.profitAmount).toLocaleString("en-IN")}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -2322,6 +2603,13 @@ export default function Dashboard() {
                     onChange={(e) => {
                       const newService = e.target.value;
                       setEditServiceType(newService);
+                      const rate = visaCostRates[newService];
+                      if (rate) {
+                        const minFee = rate.clientFee || rate.totalCost || 0;
+                        if (!editTotalAmount || Number(editTotalAmount) < minFee) {
+                          setEditTotalAmount(minFee);
+                        }
+                      }
                       if (newService === "medical_visa" && (!editVisaType || editVisaType.includes("ট্যুরিস্ট") || editVisaType.includes("Tourist"))) {
                         setEditVisaType("মেডিকেল পেশেন্ট (Medical Patient)");
                       } else if (newService === "medical_attendant") {
@@ -2445,8 +2733,8 @@ export default function Dashboard() {
                       type="number"
                       value={editTotalAmount}
                       onChange={(e) => setEditTotalAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="যেমন: 25000"
-                      min={0}
+                      placeholder="যেমন: 3000"
+                      min={visaCostRates[editServiceType]?.clientFee || 0}
                       className="input-field"
                       style={{ fontWeight: 700 }}
                     />

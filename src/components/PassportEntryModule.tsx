@@ -35,6 +35,8 @@ export interface PassportEntryItem {
   totalAmount: number;
   paidAmount: number;
   dueAmount: number;
+  costAmount?: number;
+  profitAmount?: number;
   onlineTrackId?: string;
   status: string;
   deliveryDate?: string;
@@ -48,18 +50,18 @@ export interface PassportEntryItem {
 }
 
 export const PASSPORT_TYPE_OPTIONS = [
-  { value: "5y_regular_21d", label: "১. ৫ বছর মেয়াদী সাধারণ পাসপোর্ট (২১ কর্ম দিবস)" },
-  { value: "10y_regular_21d", label: "২. ১০ বছর মেয়াদী সাধারণ পাসপোর্ট (২১ কর্ম দিবস)" },
-  { value: "5y_urgent_7d", label: "৩. ৫ বছর মেয়াদী জরুরি পাসপোর্ট (৭ কর্ম দিবস)" },
-  { value: "10y_urgent_7d", label: "৪. ১০ বছর মেয়াদী জরুরি পাসপোর্ট (৭ কর্ম দিবস)" },
-  { value: "5y_very_urgent_3d", label: "৫. ৫ বছর মেয়াদী অতীব জরুরি পাসপোর্ট (৩ কর্ম দিবস)" },
-  { value: "10y_very_urgent_3d", label: "৬. ১০ বছর মেয়াদী অতীব জরুরি পাসপোর্ট (৩ কর্ম দিবস)" },
-  { value: "5y_noc_3d", label: "৭. ৫ বছর মেয়াদী অতীব জরুরি অনাপত্তি সনদ (NOC) এর ভিত্তিতে (৩ কর্ম দিবস)" },
-  { value: "10y_noc_3d", label: "৮. ১০ বছর মেয়াদী অতীব জরুরি অনাপত্তি সনদ (NOC) এর ভিত্তিতে (৩ কর্ম দিবস)" },
-  { value: "5y_go_medical_hajj_3d", label: "৯. ৫ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে চিকিৎসা, হজ্জ পালন,তীর্থস্থান ভ্রমনের ক্ষেত্রে (৩ কর্ম দিবস)" },
-  { value: "10y_go_medical_hajj_3d", label: "১০. ১০ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে চিকিৎসা, হজ্জ পালন,তীর্থস্থান ভ্রমনের ক্ষেত্রে (৩ কর্ম দিবস)" },
-  { value: "5y_go_govt_work_3d", label: "১১. ৫ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে সরকারী কাজের ক্ষেত্রে (৩ কর্ম দিবস)" },
-  { value: "10y_go_govt_work_3d", label: "১২. ১০ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে সরকারী কাজের ক্ষেত্রে (৩ কর্ম দিবস)" },
+  { value: "5y_regular_21d", label: "৫ বছর মেয়াদী সাধারণ পাসপোর্ট (২১ কর্ম দিবস)" },
+  { value: "10y_regular_21d", label: "১০ বছর মেয়াদী সাধারণ পাসপোর্ট (২১ কর্ম দিবস)" },
+  { value: "5y_urgent_7d", label: "৫ বছর মেয়াদী জরুরি পাসপোর্ট (৭ কর্ম দিবস)" },
+  { value: "10y_urgent_7d", label: "১০ বছর মেয়াদী জরুরি পাসপোর্ট (৭ কর্ম দিবস)" },
+  { value: "5y_very_urgent_3d", label: "৫ বছর মেয়াদী অতীব জরুরি পাসপোর্ট (৩ কর্ম দিবস)" },
+  { value: "10y_very_urgent_3d", label: "১০ বছর মেয়াদী অতীব জরুরি পাসপোর্ট (৩ কর্ম দিবস)" },
+  { value: "5y_noc_3d", label: "৫ বছর মেয়াদী অতীব জরুরি অনাপত্তি সনদ (NOC) এর ভিত্তিতে (৩ কর্ম দিবস)" },
+  { value: "10y_noc_3d", label: "১০ বছর মেয়াদী অতীব জরুরি অনাপত্তি সনদ (NOC) এর ভিত্তিতে (৩ কর্ম দিবস)" },
+  { value: "5y_go_medical_hajj_3d", label: "৫ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে চিকিৎসা, হজ্জ পালন,তীর্থস্থান ভ্রমনের ক্ষেত্রে (৩ কর্ম দিবস)" },
+  { value: "10y_go_medical_hajj_3d", label: "১০ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে চিকিৎসা, হজ্জ পালন,তীর্থস্থান ভ্রমনের ক্ষেত্রে (৩ কর্ম দিবস)" },
+  { value: "5y_go_govt_work_3d", label: "৫ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে সরকারী কাজের ক্ষেত্রে (৩ কর্ম দিবস)" },
+  { value: "10y_go_govt_work_3d", label: "১০ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে সরকারী কাজের ক্ষেত্রে (৩ কর্ম দিবস)" },
 ];
 
 export default function PassportEntryModule() {
@@ -69,6 +71,7 @@ export default function PassportEntryModule() {
     totalContractAmount: 0,
     totalCollectedAmount: 0,
     totalDueAmount: 0,
+    totalProfitAmount: 0,
     readyCount: 0,
     deliveredCount: 0,
     processingCount: 0,
@@ -76,6 +79,7 @@ export default function PassportEntryModule() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [costRates, setCostRates] = useState<Record<string, { totalCost: number; clientFee: number; title: string }>>({});
 
   // Modal: Add New Passport Entry Form
   const [showAddModal, setShowAddModal] = useState(false);
@@ -150,9 +154,57 @@ export default function PassportEntryModule() {
     }
   };
 
+  // Fetch passport cost rates for dynamic client fee and profit calculation
+  const fetchCostRates = async () => {
+    try {
+      const res = await fetch("/api/passport-costs");
+      const data = await res.json();
+      if (data.success && data.costs) {
+        const map: Record<string, { totalCost: number; clientFee: number; title: string }> = {};
+        data.costs.forEach((c: any) => {
+          map[c.passportType] = {
+            totalCost: Number(c.totalCost) || 0,
+            clientFee: Number(c.clientFee) || Number(c.totalCost) || 0,
+            title: c.title,
+          };
+        });
+        setCostRates(map);
+
+        // Pre-fill initial form amount if empty
+        const initialRate = map[passportType];
+        if (initialRate && (!totalAmount || Number(totalAmount) === 0)) {
+          setTotalAmount(initialRate.clientFee || initialRate.totalCost);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading passport cost rates:", err);
+    }
+  };
+
   useEffect(() => {
     fetchEntries();
+    fetchCostRates();
   }, [filterStatus]);
+
+  const handlePassportTypeSelect = (newType: string) => {
+    setPassportType(newType);
+    const rate = costRates[newType];
+    if (rate) {
+      const minFee = rate.clientFee || rate.totalCost || 0;
+      setTotalAmount(minFee);
+    }
+  };
+
+  const handleEditPassportTypeSelect = (newType: string) => {
+    setEditPassportType(newType);
+    const rate = costRates[newType];
+    if (rate) {
+      const minFee = rate.clientFee || rate.totalCost || 0;
+      if (!editTotalAmount || Number(editTotalAmount) < minFee) {
+        setEditTotalAmount(minFee);
+      }
+    }
+  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,6 +230,14 @@ export default function PassportEntryModule() {
     }
     if (!birthDate.trim()) {
       setFormError("জন্মতারিখ নির্বাচন করুন।");
+      return;
+    }
+
+    // Minimum client charge validation
+    const currentRate = costRates[passportType];
+    const minCharge = currentRate ? (currentRate.clientFee || currentRate.totalCost || 0) : 0;
+    if (minCharge > 0 && numTotal < minCharge) {
+      setFormError(`"${currentRate?.title || 'নির্বাচিত পাসপোর্ট ধরন'}" এর জন্য নির্ধারিত ক্লায়েন্ট চার্জ ৳${minCharge.toLocaleString("en-IN")}। এর কম টাকা নেওয়া যাবে না (সমান বা বেশি নিতে হবে)।`);
       return;
     }
 
@@ -333,6 +393,14 @@ export default function PassportEntryModule() {
 
     if (!editName.trim() || !editMobile.trim() || !editNid.trim() || !editBirthDate.trim()) {
       setEditFormError("দয়া করে নাম, মোবাইল, NID এবং জন্মতারিখ পূরণ করুন।");
+      return;
+    }
+
+    // Minimum client charge validation for Edit
+    const editRate = costRates[editPassportType];
+    const minCharge = editRate ? (editRate.clientFee || editRate.totalCost || 0) : 0;
+    if (minCharge > 0 && numEditTotal < minCharge) {
+      setEditFormError(`"${editRate?.title || 'নির্বাচিত পাসপোর্ট ধরন'}" এর জন্য নির্ধারিত ক্লায়েন্ট চার্জ ৳${minCharge.toLocaleString("en-IN")}। এর কম টাকা নেওয়া যাবে না (সমান বা বেশি নিতে হবে)।`);
       return;
     }
 
@@ -533,6 +601,19 @@ export default function PassportEntryModule() {
           </div>
         </div>
 
+        {/* Total Profit Amount */}
+        <div className="glass-panel" style={{ padding: "20px", borderLeft: "4px solid #10b981" }}>
+          <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginBottom: "6px" }}>
+            মোট আনুমানিক লাভ (Total Profit)
+          </div>
+          <div style={{ fontSize: "1.85rem", fontWeight: 900, color: "#34d399" }}>
+            ৳ {(stats.totalProfitAmount || 0).toLocaleString("en-IN")}
+          </div>
+          <div style={{ fontSize: "0.74rem", color: "#34d399", marginTop: "4px" }}>
+            পাসপোর্ট প্রতি নিট মুনাফা
+          </div>
+        </div>
+
         {/* Total Passport Entries */}
         <div className="glass-panel" style={{ padding: "20px", borderLeft: "4px solid #38bdf8" }}>
           <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginBottom: "6px" }}>
@@ -615,6 +696,7 @@ export default function PassportEntryModule() {
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>NID ও জন্মতারিখ</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>পাসপোর্ট ধরন</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>Online Track ID</th>
+                <th style={{ padding: "14px 18px", color: "#34d399", fontWeight: 700 }}>টাকা ও লাভ (Profit)</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>বকেয়া টাকা</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>স্ট্যাটাস</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>তৈরি করেছেন</th>
@@ -625,13 +707,13 @@ export default function PassportEntryModule() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={12} style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
                     পাসপোর্ট এন্ট্রি লোড হচ্ছে...
                   </td>
                 </tr>
               ) : entries.length === 0 ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: "50px", textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={12} style={{ padding: "50px", textAlign: "center", color: "var(--text-muted)" }}>
                     <div style={{ marginBottom: "12px", fontSize: "1.1rem" }}>কোনো পাসপোর্ট এন্ট্রি পাওয়া যায়নি।</div>
                     <button onClick={() => setShowAddModal(true)} className="btn-primary btn-sm">
                       + প্রথম এন্ট্রি যুক্ত করুন
@@ -794,7 +876,28 @@ export default function PassportEntryModule() {
                       )}
                     </td>
 
-
+                    {/* Total Amount & Profit Column */}
+                    <td style={{ padding: "14px 18px" }}>
+                      <div
+                        style={{
+                          fontWeight: 800,
+                          color: (item.profitAmount || 0) > 0 ? "#34d399" : "var(--text-muted)",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "3px",
+                          padding: "3px 8px",
+                          borderRadius: "6px",
+                          background: (item.profitAmount || 0) > 0 ? "rgba(16, 185, 129, 0.12)" : "rgba(255, 255, 255, 0.04)",
+                          border: (item.profitAmount || 0) > 0 ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--border-subtle)",
+                          fontSize: "0.84rem",
+                        }}
+                      >
+                        {(item.profitAmount || 0) > 0 ? `+৳ ${(item.profitAmount || 0).toLocaleString("en-IN")}` : "৳ ০"}
+                      </div>
+                      <div style={{ fontSize: "0.74rem", color: "var(--text-secondary)", marginTop: "2px", fontWeight: 600 }}>
+                        মোট: ৳ {item.totalAmount.toLocaleString("en-IN")}
+                      </div>
+                    </td>
 
                     {/* Due Amount */}
                     <td style={{ padding: "14px 18px" }}>
@@ -1083,7 +1186,7 @@ export default function PassportEntryModule() {
                 </label>
                 <select
                   value={passportType}
-                  onChange={(e) => setPassportType(e.target.value)}
+                  onChange={(e) => handlePassportTypeSelect(e.target.value)}
                   className="input-field"
                 >
                   {PASSPORT_TYPE_OPTIONS.map((opt) => (
@@ -1131,15 +1234,35 @@ export default function PassportEntryModule() {
                     <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
                       কত টাকা নিবে তার কাছে (Total Amount) *
                     </label>
-                    <input
-                      type="number"
-                      value={totalAmount}
-                      onChange={(e) => setTotalAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="যেমন: 6500"
-                      required
-                      min={0}
-                      className="input-field"
-                    />
+                    {(() => {
+                      const curRate = costRates[passportType];
+                      const minFee = curRate ? (curRate.clientFee || curRate.totalCost || 0) : 0;
+                      const isLow = minFee > 0 && numTotal > 0 && numTotal < minFee;
+
+                      return (
+                        <>
+                          <input
+                            type="number"
+                            value={totalAmount}
+                            onChange={(e) => setTotalAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                            placeholder="যেমন: 6500"
+                            required
+                            min={minFee > 0 ? minFee : 0}
+                            className="input-field"
+                            style={{
+                              borderColor: isLow ? "#fb7185" : undefined,
+                            }}
+                          />
+                          {isLow && (
+                            <div style={{ marginTop: "4px", fontSize: "0.75rem" }}>
+                              <span style={{ color: "#fb7185", fontWeight: 700 }}>
+                                ⚠️ ক্লায়েন্ট চার্জের চেয়ে কম নেওয়া যাবে না! ন্যূনতম ৳ {minFee.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   <div>
@@ -1342,6 +1465,20 @@ export default function PassportEntryModule() {
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "var(--text-secondary)" }}>মোট চুক্তি টাকা:</span>
                   <span style={{ fontWeight: 700 }}>৳ {selectedEntry.totalAmount.toLocaleString("en-IN")}</span>
+                </div>
+                {selectedEntry.costAmount !== undefined && selectedEntry.costAmount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--text-secondary)" }}>পাসপোর্ট তৈরির খরচ:</span>
+                    <span style={{ fontWeight: 600, color: "var(--text-muted)" }}>
+                      ৳ {selectedEntry.costAmount.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                )}
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "var(--text-secondary)" }}>এজেন্সির লাভ (Profit):</span>
+                  <span style={{ fontWeight: 800, color: "#34d399" }}>
+                    +৳ {(selectedEntry.profitAmount || 0).toLocaleString("en-IN")}
+                  </span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "var(--text-secondary)" }}>জমা দেওয়া টাকা:</span>
@@ -1666,16 +1803,33 @@ export default function PassportEntryModule() {
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
                   <div>
-                    <label className="label-text">কত টাকা নিবে তার কাছে (মোট বিল)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={editTotalAmount}
-                      onChange={(e) => setEditTotalAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="৳ 0"
-                      className="input-field"
-                      style={{ fontWeight: 700 }}
-                    />
+                    <label className="label-text">কত টাকা নিবে তার কাছে (মোট বিল) *</label>
+                    {(() => {
+                      const curRate = costRates[editPassportType];
+                      const minFee = curRate ? (curRate.clientFee || curRate.totalCost || 0) : 0;
+                      const isLow = minFee > 0 && numEditTotal > 0 && numEditTotal < minFee;
+
+                      return (
+                        <>
+                          <input
+                            type="number"
+                            min={minFee > 0 ? minFee : 0}
+                            value={editTotalAmount}
+                            onChange={(e) => setEditTotalAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                            placeholder="৳ 0"
+                            className="input-field"
+                            style={{ fontWeight: 700, borderColor: isLow ? "#fb7185" : undefined }}
+                          />
+                          {isLow && (
+                            <div style={{ marginTop: "4px", fontSize: "0.75rem" }}>
+                              <span style={{ color: "#fb7185", fontWeight: 700 }}>
+                                ⚠️ ক্লায়েন্ট চার্জের চেয়ে কম নেওয়া যাবে না! ন্যূনতম ৳ {minFee.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                   <div>
                     <label className="label-text">সে কত টাকা দিছে (জমা)</label>

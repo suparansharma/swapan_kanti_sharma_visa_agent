@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import PassportEntry from "@/models/PassportEntry";
+import PassportCost from "@/models/PassportCost";
 import { getAuthUser } from "@/lib/auth";
 
 export async function GET(request: Request) {
@@ -33,19 +34,58 @@ export async function GET(request: Request) {
       .sort({ createdAt: -1 })
       .lean();
 
+    // Load PassportCost rates map to calculate profit dynamically even if historical records lack fields
+    const costDocs = await PassportCost.find().lean();
+    const costMap: Record<string, { totalCost: number; clientFee: number }> = {};
+    for (const c of costDocs) {
+      costMap[c.passportType] = {
+        totalCost: Number(c.totalCost) || 0,
+        clientFee: Number(c.clientFee) || Number(c.totalCost) || 0,
+      };
+    }
+
+    const formattedEntries = entries.map((e) => {
+      const cfg = costMap[e.passportType];
+      const costAmount =
+        e.costAmount !== undefined && Number(e.costAmount) > 0
+          ? Number(e.costAmount)
+          : cfg
+          ? cfg.totalCost
+          : 0;
+      const profitAmount =
+        e.profitAmount !== undefined && Number(e.profitAmount) > 0
+          ? Number(e.profitAmount)
+          : costAmount > 0
+          ? Math.max(0, (Number(e.totalAmount) || 0) - costAmount)
+          : 0;
+
+      return {
+        ...e,
+        costAmount,
+        profitAmount,
+      };
+    });
+
     // Summary statistics
     const allEntries = await PassportEntry.find().lean();
     let totalContractAmount = 0;
     let totalCollectedAmount = 0;
     let totalDueAmount = 0;
+    let totalProfitAmount = 0;
     let readyCount = 0;
     let deliveredCount = 0;
     let processingCount = 0;
 
     for (const e of allEntries) {
-      totalContractAmount += Number(e.totalAmount) || 0;
+      const t = Number(e.totalAmount) || 0;
+      totalContractAmount += t;
       totalCollectedAmount += Number(e.paidAmount) || 0;
       totalDueAmount += Number(e.dueAmount) || 0;
+
+      const cfg = costMap[e.passportType];
+      const c = e.costAmount !== undefined && Number(e.costAmount) > 0 ? Number(e.costAmount) : cfg ? cfg.totalCost : 0;
+      const p = e.profitAmount !== undefined && Number(e.profitAmount) > 0 ? Number(e.profitAmount) : c > 0 ? Math.max(0, t - c) : 0;
+      totalProfitAmount += p;
 
       if (e.status === "ready_for_pickup") readyCount++;
       else if (e.status === "delivered") deliveredCount++;
@@ -54,12 +94,13 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      entries,
+      entries: formattedEntries,
       stats: {
         total: allEntries.length,
         totalContractAmount,
         totalCollectedAmount,
         totalDueAmount,
+        totalProfitAmount,
         readyCount,
         deliveredCount,
         processingCount,
@@ -105,6 +146,24 @@ export async function POST(request: Request) {
     const parsedPaid = Math.max(0, Number(paidAmount) || 0);
     const calculatedDue = Math.max(0, parsedTotal - parsedPaid);
 
+    // Look up PassportCost configuration for this passport type
+    const targetType = passportType || "5y_regular_21d";
+    const costDoc = await PassportCost.findOne({ passportType: targetType });
+
+    // Enforce minimum client fee: Total Amount must be >= clientFee (or totalCost if no clientFee)
+    const minRequired = costDoc ? (Number(costDoc.clientFee) || Number(costDoc.totalCost) || 0) : 0;
+    if (minRequired > 0 && parsedTotal < minRequired) {
+      return NextResponse.json(
+        {
+          error: `এই পাসপোর্ট ধরনের জন্য ন্যূনতম ক্লায়েন্ট চার্জ ৳${minRequired.toLocaleString("en-IN")}। এর চেয়ে কম টাকা নেওয়া যাবে না (সমান বা বেশি নিতে হবে)।`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const costAmount = costDoc ? Number(costDoc.totalCost) || 0 : 0;
+    const profitAmount = costAmount > 0 ? Math.max(0, parsedTotal - costAmount) : (costDoc?.estimatedProfit || 0);
+
     // Generate sequential entry serial: PS-001, PS-002, ...
     let nextNum = 1;
     const latestEntry = await PassportEntry.findOne({ entryNumber: /^PS-\d+$/ })
@@ -118,12 +177,10 @@ export async function POST(request: Request) {
         nextNum = parseInt(match[1], 10) + 1;
       }
     } else {
-      // Fallback: If no PS-xxx records exist yet, count existing entries
       const count = await PassportEntry.countDocuments();
       nextNum = count + 1;
     }
 
-    // Ensure uniqueness in case of concurrent requests or gaps
     let entryNumber = `PS-${String(nextNum).padStart(3, "0")}`;
     while (await PassportEntry.exists({ entryNumber })) {
       nextNum += 1;
@@ -137,10 +194,12 @@ export async function POST(request: Request) {
       email: email ? email.trim() : "",
       nid: nid.trim(),
       birthDate: birthDate.trim(),
-      passportType: passportType || "e_passport_10y_48p",
+      passportType: targetType,
       totalAmount: parsedTotal,
       paidAmount: parsedPaid,
       dueAmount: calculatedDue,
+      costAmount,
+      profitAmount,
       onlineTrackId: onlineTrackId ? onlineTrackId.trim() : "",
       status: status || "submitted",
       deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
@@ -190,6 +249,11 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Entry ID is required" }, { status: 400 });
     }
 
+    const existing = await PassportEntry.findById(id);
+    if (!existing) {
+      return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+    }
+
     const updateData: Record<string, unknown> = {};
     if (name) updateData.name = name.trim();
     if (mobile) updateData.mobile = mobile.trim();
@@ -207,16 +271,32 @@ export async function PUT(request: Request) {
       updateData.updatedByName = authUser.name || "";
     }
 
-    if (totalAmount !== undefined || paidAmount !== undefined) {
-      const existing = await PassportEntry.findById(id);
-      if (!existing) {
-        return NextResponse.json({ error: "Entry not found" }, { status: 404 });
-      }
+    const targetType = passportType || existing.passportType;
+    const costDoc = await PassportCost.findOne({ passportType: targetType });
+
+    if (totalAmount !== undefined || paidAmount !== undefined || passportType !== undefined) {
       const t = totalAmount !== undefined ? Math.max(0, Number(totalAmount) || 0) : existing.totalAmount;
       const p = paidAmount !== undefined ? Math.max(0, Number(paidAmount) || 0) : existing.paidAmount;
+
+      // Enforce minimum client fee if totalAmount was provided or modified
+      const minRequired = costDoc ? (Number(costDoc.clientFee) || Number(costDoc.totalCost) || 0) : 0;
+      if (minRequired > 0 && t < minRequired) {
+        return NextResponse.json(
+          {
+            error: `এই পাসপোর্ট ধরনের জন্য নির্ধারিত ক্লায়েন্ট চার্জ ৳${minRequired.toLocaleString("en-IN")}। এর চেয়ে কম টাকা নেওয়া যাবে না (সমান বা বেশি নিতে হবে)।`,
+          },
+          { status: 400 }
+        );
+      }
+
       updateData.totalAmount = t;
       updateData.paidAmount = p;
       updateData.dueAmount = Math.max(0, t - p);
+
+      const costAmount = costDoc ? Number(costDoc.totalCost) || 0 : existing.costAmount || 0;
+      const profitAmount = costAmount > 0 ? Math.max(0, t - costAmount) : (existing.profitAmount || 0);
+      updateData.costAmount = costAmount;
+      updateData.profitAmount = profitAmount;
     }
 
     const updated = await PassportEntry.findByIdAndUpdate(id, updateData, { new: true })

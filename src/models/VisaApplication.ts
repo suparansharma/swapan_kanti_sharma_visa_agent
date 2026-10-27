@@ -16,6 +16,8 @@ export interface IVisaApplication extends Document {
   totalAmount: number; // কত টাকা নিবে তার কাছে
   paidAmount: number;  // সে কত টাকা দিছে
   dueAmount: number;   // বকেয়া টাকা
+  costAmount?: number; // ভিসা প্রসেসিং খরচ (VisaCost থেকে)
+  profitAmount?: number; // এজেন্সির লাভ (totalAmount - costAmount)
   feeStatus: "paid" | "partial" | "pending";
   notes?: string;
   createdBy?: mongoose.Types.ObjectId;
@@ -97,6 +99,15 @@ const VisaApplicationSchema = new Schema<IVisaApplication>(
       type: Number,
       default: 0,
     },
+    costAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    profitAmount: {
+      type: Number,
+      default: 0,
+    },
     feeStatus: {
       type: String,
       enum: ["paid", "partial", "pending"],
@@ -128,17 +139,24 @@ const VisaApplicationSchema = new Schema<IVisaApplication>(
   }
 );
 
-// Pre-save hook to ensure dueAmount is correctly calculated
+// Pre-save hook to ensure dueAmount and profitAmount are correctly calculated
 VisaApplicationSchema.pre("save", function () {
   this.dueAmount = Math.max(0, (this.totalAmount || 0) - (this.paidAmount || 0));
   if (this.totalAmount && !this.feeAmount) {
     this.feeAmount = this.totalAmount;
+  }
+  if (this.costAmount !== undefined && this.costAmount > 0) {
+    this.profitAmount = Math.max(0, (this.totalAmount || 0) - (this.costAmount || 0));
   }
 });
 
 // Search indexes for rapid lookup by trackingId or passportNumber
 VisaApplicationSchema.index({ trackingId: 1 });
 VisaApplicationSchema.index({ passportNumber: 1 });
+
+if (mongoose.models.VisaApplication) {
+  delete (mongoose.models as Record<string, unknown>).VisaApplication;
+}
 
 const VisaApplication: Model<IVisaApplication> =
   mongoose.models.VisaApplication ||

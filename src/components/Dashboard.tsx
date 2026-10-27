@@ -545,55 +545,6 @@ export default function Dashboard() {
                       Active
                     </span>
                   </button>
-
-                  {/* Future Passport Submodules (Placeholders to expand easily) */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      color: "var(--text-muted)",
-                      fontSize: "0.8rem",
-                      cursor: "not-allowed",
-                    }}
-                    title="পরবর্তী ধাপে যুক্ত হবে"
-                  >
-                    <span>পাসপোর্ট ডেলিভারি</span>
-                    <span style={{ fontSize: "0.68rem", color: "#64748b" }}>শীঘ্রই</span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      color: "var(--text-muted)",
-                      fontSize: "0.8rem",
-                      cursor: "not-allowed",
-                    }}
-                    title="পরবর্তী ধাপে যুক্ত হবে"
-                  >
-                    <span>পুলিশ ভেরিফিকেশন</span>
-                    <span style={{ fontSize: "0.68rem", color: "#64748b" }}>শীঘ্রই</span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      color: "var(--text-muted)",
-                      fontSize: "0.8rem",
-                      cursor: "not-allowed",
-                    }}
-                    title="পরবর্তী ধাপে যুক্ত হবে"
-                  >
-                    <span>পাসপোর্ট রিনিউয়াল</span>
-                    <span style={{ fontSize: "0.68rem", color: "#64748b" }}>শীঘ্রই</span>
-                  </div>
                 </div>
               )}
             </div>

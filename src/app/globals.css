@@ -200,7 +200,8 @@ body::after {
 }
 
 /* Form Inputs & Selects */
-.input-field {
+.input-field,
+.form-input {
   width: 100%;
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
@@ -213,7 +214,17 @@ body::after {
   font-family: inherit;
 }
 
+.form-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 7px;
+  letter-spacing: 0.01em;
+}
+
 select.input-field,
+select.form-input,
 select.input-field option,
 select.input-field optgroup {
   background-color: #0d121f;
@@ -221,31 +232,36 @@ select.input-field optgroup {
 }
 
 [data-theme="light"] select.input-field,
+[data-theme="light"] select.form-input,
 [data-theme="light"] select.input-field option,
 [data-theme="light"] select.input-field optgroup {
   background-color: #ffffff;
   color: #0f172a;
 }
 
-.input-field:focus {
+.input-field:focus,
+.form-input:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
   background: var(--bg-surface);
 }
 
-.input-field::placeholder {
+.input-field::placeholder,
+.form-input::placeholder {
   color: var(--text-muted);
 }
 
 /* Light theme specific enhancements */
-[data-theme="light"] .input-field {
+[data-theme="light"] .input-field,
+[data-theme="light"] .form-input {
   background: #ffffff;
   border-color: #cbd5e1;
   color: #0f172a;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-[data-theme="light"] .input-field:focus {
+[data-theme="light"] .input-field:focus,
+[data-theme="light"] .form-input:focus {
   background: #ffffff;
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);

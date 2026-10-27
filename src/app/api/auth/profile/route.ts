@@ -11,7 +11,7 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { name, bio, department } = body;
+    const { name, bio, department, phone, address, emergencyContact } = body;
 
     if (!name || name.trim().length < 2) {
       return NextResponse.json(
@@ -25,8 +25,8 @@ export async function PUT(request: Request) {
       authPayload.userId,
       {
         name: name.trim(),
-        bio: bio ? bio.trim().slice(0, 200) : "",
-        department: department ? department.trim() : "Engineering",
+        bio: bio !== undefined ? bio.trim().slice(0, 200) : "",
+        ...(department ? { department: department.trim() } : {}),
       },
       { new: true, runValidators: true }
     ).select("-password");
@@ -34,6 +34,24 @@ export async function PUT(request: Request) {
     if (!updatedUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+
+    // Also update Employee record if linked
+    const Employee = (await import("@/models/Employee")).default;
+    const empUpdate: Record<string, unknown> = { name: name.trim() };
+    if (phone !== undefined) empUpdate.phone = phone.trim();
+    if (address !== undefined) empUpdate.address = address.trim();
+    if (emergencyContact !== undefined) empUpdate.emergencyContact = emergencyContact.trim();
+
+    const employee = await Employee.findOneAndUpdate(
+      {
+        $or: [
+          { userId: updatedUser._id },
+          { email: updatedUser.email.toLowerCase() }
+        ]
+      },
+      { $set: empUpdate },
+      { new: true }
+    ).lean();
 
     return NextResponse.json({
       success: true,
@@ -44,8 +62,25 @@ export async function PUT(request: Request) {
         email: updatedUser.email,
         role: updatedUser.role,
         bio: updatedUser.bio,
-        department: updatedUser.department,
+        department: employee?.department || updatedUser.department,
         createdAt: updatedUser.createdAt,
+        employee: employee
+          ? {
+              id: employee._id.toString(),
+              employeeId: employee.employeeId,
+              name: employee.name,
+              phone: employee.phone,
+              email: employee.email,
+              department: employee.department,
+              designation: employee.designation,
+              joiningDate: employee.joiningDate,
+              salary: employee.salary,
+              status: employee.status,
+              address: employee.address,
+              emergencyContact: employee.emergencyContact,
+              notes: employee.notes,
+            }
+          : null,
       },
     });
   } catch (error: unknown) {

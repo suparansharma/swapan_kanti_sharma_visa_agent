@@ -111,23 +111,24 @@ export default function Navbar() {
           {!loading && user && (
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <Link
-                href="/admin"
+                href="/admin?tab=profile"
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: "10px",
-                  padding: "4px 12px",
+                  padding: "5px 12px",
                   background: "rgba(99, 102, 241, 0.12)",
                   borderRadius: "var(--radius-md)",
                   border: "1px solid rgba(99, 102, 241, 0.3)",
                   textDecoration: "none",
+                  transition: "all 0.2s ease",
                 }}
-                title="অ্যাডমিন ড্যাশবোর্ডে প্রবেশ করুন"
+                title="প্রোফাইল দেখতে ক্লিক করুন"
               >
                 <div
                   style={{
-                    width: "28px",
-                    height: "28px",
+                    width: "30px",
+                    height: "30px",
                     borderRadius: "50%",
                     background: "linear-gradient(135deg, #4f46e5, #06b6d4)",
                     display: "flex",
@@ -135,29 +136,35 @@ export default function Navbar() {
                     justifyContent: "center",
                     color: "#fff",
                     fontWeight: 700,
-                    fontSize: "0.78rem",
+                    fontSize: "0.8rem",
                   }}
                 >
-                  {user.name.charAt(0).toUpperCase()}
+                  {(user.employee?.name || user.name || "U").charAt(0).toUpperCase()}
                 </div>
-                <div style={{ lineHeight: 1.2 }}>
+                <div style={{ lineHeight: 1.25, maxWidth: "160px" }}>
                   <div
                     style={{
                       fontSize: "0.82rem",
                       fontWeight: 700,
                       color: "var(--text-main)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                   >
-                    {user.name}
+                    {user.employee?.name || user.name}
                   </div>
                   <div
                     style={{
                       fontSize: "0.68rem",
-                      color: "#34d399",
+                      color: "#38bdf8",
                       fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                   >
-                    অ্যাডমিন প্যানেল &rarr;
+                    {user.employee?.designation || (user.role === "admin" ? "অ্যাডমিন" : "এমপ্লয়ি")} &bull; প্রোফাইল
                   </div>
                 </div>
               </Link>

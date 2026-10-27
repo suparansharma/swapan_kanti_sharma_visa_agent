@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import PassportEntryModule from "@/components/PassportEntryModule";
 import ReportModule from "@/components/ReportModule";
 import HRMModule from "@/components/HRMModule";
+import ProfileView from "@/components/ProfileView";
 import {
   VISA_GENERAL_STATUSES,
   VISA_MEDICAL_STATUSES,
@@ -101,7 +102,7 @@ export default function Dashboard() {
     | null;
 
   // Active navigation tab
-  // Options: 'passport_entry' | 'overview' | 'visa_applications' | 'reports' | 'passport_reports' | 'visa_reports' | 'hrm' | 'hrm_employees' | 'hrm_departments' | 'hrm_designations'
+  // Options: 'passport_entry' | 'overview' | 'visa_applications' | 'reports' | 'passport_reports' | 'visa_reports' | 'hrm' | 'hrm_employees' | 'hrm_departments' | 'hrm_designations' | 'profile'
   const [activeTab, setActiveTabState] = useState<
     | "passport_entry"
     | "overview"
@@ -113,12 +114,13 @@ export default function Dashboard() {
     | "hrm_employees"
     | "hrm_departments"
     | "hrm_designations"
-  >(tabFromUrl || "passport_entry");
+    | "profile"
+  >((tabFromUrl as any) || "passport_entry");
 
   // Sync tab with URL
   useEffect(() => {
     if (tabFromUrl && tabFromUrl !== activeTab) {
-      setActiveTabState(tabFromUrl);
+      setActiveTabState(tabFromUrl as any);
     }
   }, [tabFromUrl]);
 
@@ -134,6 +136,7 @@ export default function Dashboard() {
       | "hrm_employees"
       | "hrm_departments"
       | "hrm_designations"
+      | "profile"
   ) => {
     setActiveTabState(tab);
     router.push(`/admin?tab=${tab}`, { scroll: false });
@@ -977,7 +980,7 @@ export default function Dashboard() {
           </nav>
         </div>
 
-        {/* Sidebar Footer: Admin Profile & Logout */}
+        {/* Sidebar Footer: User / Employee Profile & Logout */}
         <div
           style={{
             borderTop: "1px solid var(--border-subtle)",
@@ -987,11 +990,24 @@ export default function Dashboard() {
             gap: "12px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div
+            onClick={() => setActiveTab("profile")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              cursor: "pointer",
+              padding: "6px 8px",
+              borderRadius: "var(--radius-md)",
+              background: activeTab === "profile" ? "rgba(99, 102, 241, 0.15)" : "transparent",
+              transition: "all 0.15s ease",
+            }}
+            title="আপনার প্রোফাইল দেখতে ক্লিক করুন"
+          >
             <div
               style={{
-                width: "34px",
-                height: "34px",
+                width: "36px",
+                height: "36px",
                 borderRadius: "50%",
                 background: "linear-gradient(135deg, #4f46e5, #06b6d4)",
                 display: "flex",
@@ -1000,16 +1016,35 @@ export default function Dashboard() {
                 color: "#fff",
                 fontWeight: 700,
                 fontSize: "0.85rem",
+                flexShrink: 0,
               }}
             >
-              {user?.name?.charAt(0).toUpperCase() || "A"}
+              {(user?.employee?.name || user?.name || "U").charAt(0).toUpperCase()}
             </div>
-            <div style={{ lineHeight: 1.2, overflow: "hidden" }}>
-              <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-main)", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {user?.name || "Admin Sharma"}
+            <div style={{ lineHeight: 1.25, overflow: "hidden", flex: 1 }}>
+              <div
+                style={{
+                  fontSize: "0.84rem",
+                  fontWeight: 700,
+                  color: "var(--text-main)",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                }}
+              >
+                {user?.employee?.name || user?.name || "ব্যবহারকারী"}
               </div>
-              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {user?.email || "admin@sharma.com"}
+              <div
+                style={{
+                  fontSize: "0.72rem",
+                  color: "#38bdf8",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  fontWeight: 600,
+                }}
+              >
+                {user?.employee?.designation || (user?.role === "admin" ? "অ্যাডমিন" : "এমপ্লয়ি")} &bull; প্রোফাইল
               </div>
             </div>
           </div>
@@ -1545,6 +1580,9 @@ export default function Dashboard() {
         {activeTab === "hrm_designations" && (
           <HRMModule initialSection="designations" />
         )}
+
+        {/* VIEW 6: USER & EMPLOYEE PROFILE VIEW */}
+        {activeTab === "profile" && <ProfileView />}
       </main>
 
       {/* MODAL: ADD VISA APPLICATION */}

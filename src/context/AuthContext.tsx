@@ -2,6 +2,22 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 
+export interface EmployeeInfo {
+  id: string;
+  employeeId: string;
+  name: string;
+  phone: string;
+  email?: string;
+  department: string;
+  designation: string;
+  joiningDate?: string;
+  salary?: number;
+  status: "active" | "inactive" | "on_leave";
+  address?: string;
+  emergencyContact?: string;
+  notes?: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -10,6 +26,7 @@ export interface User {
   bio?: string;
   department?: string;
   createdAt?: string;
+  employee?: EmployeeInfo | null;
 }
 
 interface AuthContextType {

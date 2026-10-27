@@ -39,7 +39,12 @@ export interface PassportEntryItem {
   status: string;
   deliveryDate?: string;
   notes?: string;
+  createdBy?: { _id: string; name: string; email?: string } | string;
+  createdByName?: string;
+  updatedBy?: { _id: string; name: string; email?: string } | string;
+  updatedByName?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export const PASSPORT_TYPE_OPTIONS = [
@@ -610,10 +615,10 @@ export default function PassportEntryModule() {
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>NID ও জন্মতারিখ</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>পাসপোর্ট ধরন</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>Online Track ID</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>চুক্তি টাকা</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>জমা টাকা</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>বকেয়া টাকা</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>স্ট্যাটাস</th>
+                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>তৈরি করেছেন</th>
+                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>সর্বশেষ আপডেট</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600, textAlign: "right" }}>একশন</th>
               </tr>
             </thead>
@@ -789,19 +794,7 @@ export default function PassportEntryModule() {
                       )}
                     </td>
 
-                    {/* Total Amount */}
-                    <td style={{ padding: "14px 18px" }}>
-                      <div style={{ fontWeight: 700, color: "var(--text-main)" }}>
-                        ৳ {item.totalAmount.toLocaleString("en-IN")}
-                      </div>
-                    </td>
 
-                    {/* Paid Amount */}
-                    <td style={{ padding: "14px 18px" }}>
-                      <div style={{ fontWeight: 700, color: "#34d399" }}>
-                        ৳ {item.paidAmount.toLocaleString("en-IN")}
-                      </div>
-                    </td>
 
                     {/* Due Amount */}
                     <td style={{ padding: "14px 18px" }}>
@@ -841,6 +834,48 @@ export default function PassportEntryModule() {
                         <option value="ready_for_pickup">পাসপোর্ট রেডি</option>
                         <option value="delivered">ডেলিভারি সম্পন্ন</option>
                       </select>
+                    </td>
+
+                    {/* Created By Column */}
+                    <td style={{ padding: "14px 18px", fontSize: "0.82rem" }}>
+                      <div style={{ fontWeight: 600, color: "#38bdf8" }}>
+                        {typeof item.createdBy === "object" && item.createdBy?.name
+                          ? item.createdBy.name
+                          : item.createdByName || "সিস্টেম"}
+                      </div>
+                      <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                        {item.createdAt
+                          ? new Date(item.createdAt).toLocaleDateString("bn-BD", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "—"}
+                      </div>
+                    </td>
+
+                    {/* Updated By Column */}
+                    <td style={{ padding: "14px 18px", fontSize: "0.82rem" }}>
+                      {(typeof item.updatedBy === "object" && item.updatedBy?.name) || item.updatedByName ? (
+                        <>
+                          <div style={{ fontWeight: 600, color: "#a78bfa" }}>
+                            {typeof item.updatedBy === "object" && item.updatedBy?.name
+                              ? item.updatedBy.name
+                              : item.updatedByName}
+                          </div>
+                          <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                            {item.updatedAt
+                              ? new Date(item.updatedAt).toLocaleDateString("bn-BD", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "—"}
+                          </div>
+                        </>
+                      ) : (
+                        <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>—</span>
+                      )}
                     </td>
 
                     {/* Action buttons */}

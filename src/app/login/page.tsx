@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -27,10 +27,10 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // If already logged in, redirect
-  if (user) {
-    router.push("/");
-  }
+  // Redirect to dedicated /admin portal
+  useEffect(() => {
+    router.replace("/admin");
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +48,7 @@ export default function LoginPage() {
     if (res.success) {
       setSuccess(true);
       setTimeout(() => {
-        router.push("/");
+        router.push("/admin");
       }, 500);
     } else {
       setError(res.error || "Invalid email or password");

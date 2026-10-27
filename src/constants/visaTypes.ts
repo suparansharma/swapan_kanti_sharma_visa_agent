@@ -1,8 +1,207 @@
-export interface VisaTypeOption {
+export interface IndianVisaTypeItem {
   value: string;
-  category: string;
   code: string;
-  label: string;
+  title: string;
+  description: string;
+}
+
+export const STRUCTURED_INDIAN_VISA_TYPES: IndianVisaTypeItem[] = [
+  {
+    value: "TOURIST VISA (T1) - FOR TOURISM RECREATION, SIGHTSEEING CASUAL VISIT TO MEET FRIENDS OR RELATIVES, ATTENDING A SHORT TERM YOGA PROGRAMME, SHORT DURATION MEDICAL TREATMENT (INCLUDING TREATMENT UNDER AYUSH SYSTEMS), SHORT TERM COURSES ON LOCAL LANGUAGES, MUSIC, DANCE, ARTS AND CRAFTS, COOKING, MEDICINE ETC. WHICH SHOULD NOT BE A FORMAL OR STRUCTURED COURSE/PROGRAMME (COURSE NOT EXCEEDING 6 MONTHS DURATION AND NOT ISSUED WITH A QUALIFYING CERTIFICATE/DIPLOMA ETC.) AND VOLUNTARY WORK OF SHORT DURATION (FOR A MAXIMUM PERIOD OF ONE MONTH, WHICH DO NOT INVOLVE ANY MONETARY PAYMENT OR CONSIDERATION OF ANY KIND IN RETURN ETC. AND NO OTHER PURPOSE/ACTIVITY).",
+    code: "T1",
+    title: "ট্যুরিস্ট ভিসা (Tourist - T1)",
+    description: "ভ্রমণ ও আত্মীয়স্বজনের সাথে দেখা",
+  },
+  {
+    value: "TOURIST VISA (T2) - FOR FOREIGN NATIONALS COMING FOR MOUNTAINEERING EXPEDITIONS.",
+    code: "T2",
+    title: "পর্বতারোহণ (Tourist - T2)",
+    description: "পর্বতারোহণ অভিযান",
+  },
+  {
+    value: "MEDICAL VISA (M1) - FOR FOREIGN NATIONALS COMING FOR MEDICAL TREATMENT (OTHER THAN THOSE UNDER AYUSH SYSTEMS).",
+    code: "M1",
+    title: "মেডিকেল পেশেন্ট (Medical Patient - M1)",
+    description: "চিকিৎসার জন্য রোগী ভিসা",
+  },
+  {
+    value: "MEDICAL VISA (M2) - FOR MEDICAL ATTENDANTS OF THOSE COMING UNDER M-1 VISA.",
+    code: "M2",
+    title: "মেডিকেল এটেন্ডেন্ট (Medical Attendant - M2)",
+    description: "রোগীর সাথে থাকা এটেন্ডেন্ট",
+  },
+  {
+    value: "MEDICAL VISA (M3) - FOR FOREIGN NATIONALS COMING FOR TREATMENT UNDER AYUSH SYSTEMS.",
+    code: "M3",
+    title: "আয়ুষ চিকিৎসা (Medical Ayush - M3)",
+    description: "আয়ুর্বেদ ও প্রাকৃতিক চিকিৎসা",
+  },
+  {
+    value: "MEDICAL VISA (M4) - FOR ATTENDANTS OF THOSE COMING ON M-3 VISA.",
+    code: "M4",
+    title: "আয়ুষ এটেন্ডেন্ট (Medical Ayush Attendant - M4)",
+    description: "আয়ুষ রোগীর সাথে এটেন্ডেন্ট",
+  },
+  {
+    value: "BUSINESS VISA (B1) - FOR ALL BUSINESS ACTIVITIES [OTHER THAN THOSE COVERED BY B-2, B-3 AND B-4 VISAS",
+    code: "B1",
+    title: "বিজনেস ভিসা (Business - B1)",
+    description: "সাধারণ বাণিজ্যিক কার্যক্রম",
+  },
+  {
+    value: "BUSINESS VISA (B2) - FOR SPORTS PERSONS AND COACHES INCLUDING THOSE ENGAGED IN COMMERCIAL SPORTS EVENTS IN INDIA ON CONTRACT WITH REMUNERATION.",
+    code: "B2",
+    title: "ক্রীড়া ও কোচ (Sports - B2)",
+    description: "খেলোয়াড় এবং কোচদের জন্য",
+  },
+  {
+    value: "BUSINESS VISA (B3) - FOR FOREIGN NATIONALS COMING TO INDIA FOR PARTICIPATION IN CULTURAL/COMMERCIAL PERFORMANCES OR CONCERTS AND ALSO FOR THOSE INVOLVED IN PERFORMATIVE ARTS LIKE ACTING, DANCE, ETC.",
+    code: "B3",
+    title: "সাংস্কৃতিক পারফর্মেন্স (Cultural - B3)",
+    description: "সাংস্কৃতিক কনসার্ট বা পারফর্মেন্স",
+  },
+  {
+    value: "BUSINESS VISA (PRS) - PERMANENT RESIDENCY STATUS FOR FOREIGN INVESTORS",
+    code: "PRS",
+    title: "বিনিয়োগকারী (Investor - PRS)",
+    description: "স্থায়ী রেসিডেন্সি ও বিদেশী বিনিয়োগ",
+  },
+  {
+    value: "BUSINESS VISA (B5) - CONFERENCE (FOR ATTENDING INTERNATIONAL CONFERENCES/SEMINARS/WORKSHOPS).",
+    code: "B5",
+    title: "কনফারেন্স/সেমিনার (Conference - B5)",
+    description: "আন্তর্জাতিক কনফারেন্স ও সেমিনার",
+  },
+  {
+    value: "BUSINESS VISA (B6) - FILM(FOR FOREIGN NATIONALS COMING FOR SHOOTING OF FEATURE FILMS, REALITY TV & WEB SHOWS/SERIES, COMMERCIAL TV SERIALS/SHOWS & WEB SHOWS/SERIES FOR LOCATION RECCE).",
+    code: "B6",
+    title: "ফিল্ম/মিডিয়া শুটিং (Film - B6)",
+    description: "চলচ্চিত্র ও টিভি শুটিং",
+  },
+  {
+    value: "STUDENT VISA (S1) - FOR HIGHER EDUCATION (INCLUDING IN SOUTH ASIAN UNIVERSITY AND NALANDA UNIVERSITY), PROVISIONAL STUDENT VISA, FOR SHORT TERM COURSES, FOR THOSE COMING UNDER STUDENT EXCHANGE PROGRAMME AND FOR THOSE COMING TO PURSUE EDUCATION, TRAINING AND SKILL DEVELOPMENT IN AYUSH PRACTICES ETC.",
+    code: "S1",
+    title: "উচ্চশিক্ষা/স্টুডেন্ট (Student - S1)",
+    description: "বিশ্ববিদ্যালয় ও উচ্চশিক্ষা",
+  },
+  {
+    value: "STUDENT VISA (S2) - SCHOOL EDUCATION IN INDIA",
+    code: "S2",
+    title: "স্কুল শিক্ষা (Student - S2)",
+    description: "স্কুল পর্যায়ের পড়াশোনা",
+  },
+  {
+    value: "STUDENT VISA (S3) - FOR STUDIES IN YOGA, VEDIC CULTURE AND INDIAN SYSTEMS OF MUSIC AND DANCE FOR BUDDHIST STUDIES AND PROGRAMS AND COURSES ON INDIAN LANGUAGES AND INDIAN KNOWLEDGE SYSTEM.",
+    code: "S3",
+    title: "যোগ ও সংস্কৃতি শিক্ষা (Student - S3)",
+    description: "যোগ, সঙ্গীত, নৃত্য ও বৌদ্ধ শিক্ষা",
+  },
+  {
+    value: "STUDENT VISA (S4) - FOR RESEARCH SCHOLAR, VISITING RESEARCH FACULTY, RESEARCH SCHOLAR ON BILATERAL EXCHANGE PROGRAMME, MEMBERS OF BOTANICAL, SCIENTIFIC, ANTHROPOLOGICAL ETC. EXPEDITIONS AND G-20 TALENT VISA.",
+    code: "S4",
+    title: "গবেষণা/রিসার্চ (Research - S4)",
+    description: "গবেষক এবং ভিজিটিং ফ্যাকাল্টি",
+  },
+  {
+    value: "STUDENT VISA (S5) - FOR THOSE COMING FOR INTERNSHIP IN INDIA (INCLUDING THOSE COMING UNDER FRENCH VIE PROGRAMME).",
+    code: "S5",
+    title: "ইন্টার্নশিপ (Internship - S5)",
+    description: "শিক্ষানবিস ও ইন্টার্নশিপ",
+  },
+  {
+    value: "Transit Visa (TR) - TRAVELLING THROUGH INDIA TO A DESTINATION OUTSIDE INDIA",
+    code: "TR",
+    title: "ট্রানজিট ভিসা (Transit - TR)",
+    description: "অন্য দেশে যাওয়ার পথে ট্রানজিট",
+  },
+  {
+    value: "WORK VISA (E1) - ALL CASES OF EMPLOYMENT (INCLUDING INTRA COMPANY TRANSFEREES BUT EXCLUDING THOSE COVERED BY E-2 AND E-3 VISAS).",
+    code: "E1",
+    title: "ওয়ার্ক পারমিট / চাকরি (Work Permit - E1)",
+    description: "নিয়মিত কর্মসংস্থান ও চাকরি",
+  },
+  {
+    value: "WORK VISA (E2) - FOR EMPLOYMENT IN NGOS.",
+    code: "E2",
+    title: "এনজিও চাকরি (NGO Employment - E2)",
+    description: "এনজিও প্রতিষ্ঠানে কর্মসংস্থান",
+  },
+  {
+    value: "WORK VISA (E3) - FOR MISSIONARY/RELIGIOUS WORKER OF APPROVED ORGANIZATION.",
+    code: "E3",
+    title: "মিশনারী কর্মী (Missionary - E3)",
+    description: "ধর্মীয় ও মিশনারি সংস্থা",
+  },
+  {
+    value: "JOURNALIST VISA (J1) - FOR JOURNALISTS ACCREDITED IN INDIA AND ALSO FOR JOURNALISTS VISITING INDIA FOR ANY PURPOSE INCLUDING TOURISM, CONFERENCE ETC.",
+    code: "J1",
+    title: "সাংবাদিক ভিসা (Journalist - J1)",
+    description: "স্বীকৃত সাংবাদিক ও মিডিয়া কর্মী",
+  },
+  {
+    value: "JOURNALIST VISA (J2) - FOR SHOOTING OF ADVERTISEMENT/DOCUMENTARY FILMS ETC.",
+    code: "J2",
+    title: "বিজ্ঞাপন/ডকুমেন্টারি (Documentary - J2)",
+    description: "বিজ্ঞাপন ও তথ্যচিত্র নির্মাণ",
+  },
+  {
+    value: "DIPLOMATIC VISA (D-1) - DIPLOMAT ASSIGNED IN INDIA (ON DIPLOMATIC PASSPORT ONLY)",
+    code: "D-1",
+    title: "কূটনৈতিক ভিসা (Diplomatic - D-1)",
+    description: "ভারতে দায়িত্বপ্রাপ্ত কূটনীতিক",
+  },
+  {
+    value: "OFFICIAL VISA (O1) - NON-DIPLOMATIC OFFICIAL ASSIGNED TO A DIPLOMATIC MISSION IN INDIA (OFFICIAL/SERVICE/SPECIAL PASSPORT ONLY)",
+    code: "O1",
+    title: "অফিশিয়াল ভিসা (Official - O1)",
+    description: "সরকারি বা কূটনৈতিক মিশন কর্মী",
+  },
+  {
+    value: "FAMILY VISA (DEPENDENT FOR BUSINESS VISA) (B-1X) - FOR DEPENDENT OF THOSE COMING TO ESTABLISH AN INDUSTRIAL/BUSINESS VENTURE, THOSE REQUIRED TO TRAVEL FREQUENTLY ON LONG-TERM BUSINESS ACTIVITIES AND FOR INVESTORS.",
+    code: "B-1X",
+    title: "ব্যবসায়ীর পরিবার (Family - B-1X)",
+    description: "বিজনেস ভিসা ধারকের পরিবার",
+  },
+  {
+    value: "FAMILY VISA (DEPENDENT FOR WORK VISA) (E-1X) - FOR DEPENDENTS ALL CASES OF EMPLOYMENT (INCLUDING INTRA COMPANY TRANSFEREES BUT EXCLUDING THOSE COVERED BY E-2 AND E-3 VISAS).",
+    code: "E-1X",
+    title: "কর্মজীবীর পরিবার (Family - E-1X)",
+    description: "ওয়ার্ক পারমিট ধারকের পরিবার",
+  },
+  {
+    value: "FAMILY VISA (DEPENDENT FOR STUDENT VISA) (S-1X) - FOR DEPENDENTS OF THOSE COMING UNDER S-1 VISA (FOR HIGHER EDUCATION, PROVISIONAL STUDENT VISA, SHORT TERM COURSES AND STUDENT EXCHANGE PROGRAMME).",
+    code: "S-1X",
+    title: "শিক্ষার্থীর পরিবার (Family - S-1X)",
+    description: "স্টুডেন্ট ভিসা ধারকের পরিবার",
+  },
+  {
+    value: "MISCELLANEOUS VISA (X1) - FOR PERSONS OF INDIAN ORIGIN AND SPOUSE AND CHILDREN OF AN INDIAN CITIZEN / PERSON OF INDIAN ORIGIN / OCI CARDHOLDER (OTHER THAN THOSE REGISTERED AS OCI CARDHOLDER).",
+    code: "X1",
+    title: "ভারতীয় বংশোদ্ভূত ও পরিবার (Misc - X1)",
+    description: "ভারতীয় নাগরিকের পরিবার",
+  },
+  {
+    value: "MISCELLANEOUS VISA (X-Misc) - FOR PURPOSES WHICH ARE NOT COVERED BY ANY OTHER VISA CATEGORY.",
+    code: "X-Misc",
+    title: "অন্যান্য বিবিধ ভিসা (Misc - X)",
+    description: "অন্য কোনো ক্যাটাগরিতে না পড়লে",
+  },
+];
+
+// Helper to format any raw visa type or INDIAN_VISA_TYPES entry nicely
+export function formatVisaTypeDisplay(v: string): string {
+  if (!v) return "";
+  const found = STRUCTURED_INDIAN_VISA_TYPES.find((item) => item.value === v);
+  if (found) {
+    return found.title;
+  }
+  if (v.length > 50) {
+    const parts = v.split(" - ");
+    if (parts.length > 1) {
+      return parts[0];
+    }
+  }
+  return v;
 }
 
 export const INDIAN_VISA_TYPES: string[] = [

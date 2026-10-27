@@ -21,6 +21,9 @@ export interface IPassportEntry extends Document {
   deliveryDate?: Date;
   notes?: string;
   createdBy?: mongoose.Types.ObjectId;
+  createdByName?: string;
+  updatedBy?: mongoose.Types.ObjectId;
+  updatedByName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -104,6 +107,20 @@ const PassportEntrySchema = new Schema<IPassportEntry>(
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
+    },
+    createdByName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    updatedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    updatedByName: {
+      type: String,
+      trim: true,
+      default: "",
     },
   },
   {

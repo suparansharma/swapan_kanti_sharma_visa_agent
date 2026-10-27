@@ -28,6 +28,8 @@ export async function GET(request: Request) {
     }
 
     const entries = await PassportEntry.find(query)
+      .populate("createdBy", "name email")
+      .populate("updatedBy", "name email")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -144,6 +146,7 @@ export async function POST(request: Request) {
       deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
       notes: notes || "",
       createdBy: authUser?.userId ? (authUser.userId as unknown as string) : undefined,
+      createdByName: authUser?.name || "",
     });
 
     return NextResponse.json(
@@ -165,6 +168,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     await connectToDatabase();
+    const authUser = await getAuthUser();
     const body = await request.json();
     const {
       id,
@@ -198,6 +202,11 @@ export async function PUT(request: Request) {
     if (deliveryDate !== undefined) updateData.deliveryDate = deliveryDate ? new Date(deliveryDate) : undefined;
     if (notes !== undefined) updateData.notes = notes;
 
+    if (authUser?.userId) {
+      updateData.updatedBy = authUser.userId;
+      updateData.updatedByName = authUser.name || "";
+    }
+
     if (totalAmount !== undefined || paidAmount !== undefined) {
       const existing = await PassportEntry.findById(id);
       if (!existing) {
@@ -210,7 +219,9 @@ export async function PUT(request: Request) {
       updateData.dueAmount = Math.max(0, t - p);
     }
 
-    const updated = await PassportEntry.findByIdAndUpdate(id, updateData, { new: true });
+    const updated = await PassportEntry.findByIdAndUpdate(id, updateData, { new: true })
+      .populate("createdBy", "name email")
+      .populate("updatedBy", "name email");
 
     if (!updated) {
       return NextResponse.json({ error: "Entry not found" }, { status: 404 });

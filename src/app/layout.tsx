@@ -36,12 +36,12 @@ export default function RootLayout({
             <footer
               style={{
                 borderTop: "1px solid var(--border-subtle)",
-                padding: "28px 24px",
+                padding: "24px 24px",
                 textAlign: "center",
                 color: "var(--text-muted)",
                 fontSize: "0.85rem",
                 backdropFilter: "blur(10px)",
-                background: "rgba(7, 9, 14, 0.75)",
+                background: "var(--bg-surface)",
               }}
             >
               <div
@@ -63,7 +63,7 @@ export default function RootLayout({
                   <span>&bull;</span>
                   <span>গ্লোবাল ভিসা প্রসেসিং</span>
                   <span>&bull;</span>
-                  <span>রিয়েল-টাইম ফাইল ট্র্যাকিং</span>
+                  <span>কনসালটেন্সি সাপোর্ট</span>
                 </div>
               </div>
             </footer>

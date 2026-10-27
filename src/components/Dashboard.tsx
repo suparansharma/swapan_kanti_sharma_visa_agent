@@ -6,6 +6,19 @@ import PassportEntryModule from "@/components/PassportEntryModule";
 import ReportModule from "@/components/ReportModule";
 import HRMModule from "@/components/HRMModule";
 import {
+  VISA_GENERAL_STATUSES,
+  VISA_MEDICAL_STATUSES,
+  ALL_VISA_STATUSES,
+  isMedicalPatient,
+  getAvailableVisaStatuses,
+  getVisaStatusBadge,
+} from "@/constants/visaStatuses";
+import {
+  INDIAN_VISA_TYPES,
+  STRUCTURED_INDIAN_VISA_TYPES,
+  formatVisaTypeDisplay,
+} from "@/constants/visaTypes";
+import {
   Plane,
   FileText,
   CheckCircle2,
@@ -61,6 +74,12 @@ interface VisaApplicationItem {
   dueAmount?: number;
   feeStatus: "paid" | "partial" | "pending";
   notes?: string;
+  createdBy?: { _id: string; name: string; email?: string } | string;
+  createdByName?: string;
+  updatedBy?: { _id: string; name: string; email?: string } | string;
+  updatedByName?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export default function Dashboard() {
@@ -117,7 +136,7 @@ export default function Dashboard() {
       | "hrm_designations"
   ) => {
     setActiveTabState(tab);
-    router.push(`/?tab=${tab}`, { scroll: false });
+    router.push(`/admin?tab=${tab}`, { scroll: false });
   };
 
   // Sidebar accordions state
@@ -149,8 +168,9 @@ export default function Dashboard() {
   const [passportNumber, setPassportNumber] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [destinationCountry, setDestinationCountry] = useState("Canada");
+  const [destinationCountry, setDestinationCountry] = useState("India");
   const [serviceType, setServiceType] = useState("tourist_visa");
+  const [visaType, setVisaType] = useState("");
   const [status, setStatus] = useState("submitted");
   const [totalAmount, setTotalAmount] = useState<number | "">("");
   const [paidAmount, setPaidAmount] = useState<number | "">("");
@@ -164,8 +184,9 @@ export default function Dashboard() {
   const [editPassportNumber, setEditPassportNumber] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
-  const [editDestinationCountry, setEditDestinationCountry] = useState("Canada");
+  const [editDestinationCountry, setEditDestinationCountry] = useState("India");
   const [editServiceType, setEditServiceType] = useState("tourist_visa");
+  const [editVisaType, setEditVisaType] = useState("");
   const [editStatus, setEditStatus] = useState("submitted");
   const [editTotalAmount, setEditTotalAmount] = useState<number | "">("");
   const [editPaidAmount, setEditPaidAmount] = useState<number | "">("");
@@ -223,6 +244,7 @@ export default function Dashboard() {
           email,
           destinationCountry,
           serviceType,
+          visaType: visaType.trim(),
           status,
           feeAmount: numVisaTotal,
           totalAmount: numVisaTotal,
@@ -237,6 +259,7 @@ export default function Dashboard() {
         setPassportNumber("");
         setPhone("");
         setEmail("");
+        setVisaType("");
         setTotalAmount("");
         setPaidAmount("");
         setNotes("");
@@ -282,6 +305,7 @@ export default function Dashboard() {
     setEditEmail(app.email || "");
     setEditDestinationCountry(app.destinationCountry);
     setEditServiceType(app.serviceType);
+    setEditVisaType(app.visaType || "");
     setEditStatus(app.status);
     const total = app.totalAmount ?? app.feeAmount ?? 0;
     const paid = app.paidAmount ?? (app.feeStatus === "paid" ? total : 0);
@@ -314,6 +338,7 @@ export default function Dashboard() {
           email: editEmail.trim(),
           destinationCountry: editDestinationCountry.trim(),
           serviceType: editServiceType,
+          visaType: editVisaType.trim(),
           status: editStatus,
           totalAmount: numEditVisaTotal,
           paidAmount: numEditVisaPaid,
@@ -352,24 +377,7 @@ export default function Dashboard() {
   };
 
   const getStatusBadge = (s: string) => {
-    switch (s) {
-      case "submitted":
-        return { label: "আবেদন জমা", bg: "rgba(99, 102, 241, 0.15)", color: "#818cf8" };
-      case "document_verification":
-        return { label: "ডকুমেন্ট যাচাই", bg: "rgba(245, 158, 11, 0.15)", color: "#fbbf24" };
-      case "embassy_processing":
-        return { label: "এম্বাসি প্রসেসিং", bg: "rgba(14, 165, 233, 0.15)", color: "#38bdf8" };
-      case "biometric_pending":
-        return { label: "বায়োমেট্রিক স্লট", bg: "rgba(236, 72, 153, 0.15)", color: "#f472b6" };
-      case "approved":
-        return { label: "ভিসা অনুমোদিত", bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
-      case "ready_for_pickup":
-        return { label: "ডেলিভারি প্রস্তুত", bg: "rgba(16, 185, 129, 0.25)", color: "#10b981" };
-      case "delivered":
-        return { label: "ডেলিভারি সম্পন্ন", bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" };
-      default:
-        return { label: s, bg: "rgba(255, 255, 255, 0.1)", color: "#ffffff" };
-    }
+    return getVisaStatusBadge(s);
   };
 
   return (
@@ -1377,13 +1385,20 @@ export default function Dashboard() {
                   style={{ width: "auto", height: "42px", fontSize: "0.85rem", padding: "0 12px" }}
                 >
                   <option value="all">সকল আবেদন</option>
-                  <option value="submitted">আবেদন জমা</option>
-                  <option value="document_verification">ডকুমেন্ট যাচাই</option>
-                  <option value="embassy_processing">এম্বাসি প্রসেসিং</option>
-                  <option value="biometric_pending">বায়োমেট্রিক স্লট</option>
-                  <option value="approved">ভিসা অনুমোদিত</option>
-                  <option value="ready_for_pickup">ডেলিভারি প্রস্তুত</option>
-                  <option value="delivered">ডেলিভারি সম্পন্ন</option>
+                  <optgroup label="সাধারণ স্ট্যাটাস">
+                    {VISA_GENERAL_STATUSES.map((st) => (
+                      <option key={st.value} value={st.value}>
+                        {st.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="মেডিকেল / আয়ুষ স্পেশাল">
+                    {VISA_MEDICAL_STATUSES.map((st) => (
+                      <option key={st.value} value={st.value}>
+                        {st.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
             </div>
@@ -1401,6 +1416,8 @@ export default function Dashboard() {
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>সার্ভিস ধরন</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>বকেয়া টাকা</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>স্ট্যাটাস</th>
+                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>তৈরি করেছেন</th>
+                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>সর্বশেষ আপডেট</th>
                       <th style={{ padding: "14px 18px", color: "var(--text-muted)", textAlign: "right" }}>একশন</th>
                     </tr>
                   </thead>
@@ -1423,6 +1440,31 @@ export default function Dashboard() {
                           : app.serviceType === "business_visa"
                           ? "বিজনেস ভিসা"
                           : app.serviceType;
+
+                      const creator =
+                        typeof app.createdBy === "object" && app.createdBy?.name
+                          ? app.createdBy.name
+                          : app.createdByName || "সিস্টেম";
+                      const createDate = app.createdAt
+                        ? new Date(app.createdAt).toLocaleDateString("bn-BD", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—";
+
+                      const updater =
+                        typeof app.updatedBy === "object" && app.updatedBy?.name
+                          ? app.updatedBy.name
+                          : app.updatedByName;
+                      const updateDate = app.updatedAt
+                        ? new Date(app.updatedAt).toLocaleDateString("bn-BD", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : null;
+
                       return (
                         <tr key={app._id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                           <td style={{ padding: "14px 18px", fontWeight: 700, color: "#38bdf8" }}>{app.trackingId}</td>
@@ -1450,7 +1492,7 @@ export default function Dashboard() {
                                 }}
                                 title={app.visaType}
                               >
-                                {app.visaType}
+                                {formatVisaTypeDisplay(app.visaType)}
                               </div>
                             )}
                           </td>
@@ -1472,14 +1514,32 @@ export default function Dashboard() {
                                 cursor: "pointer",
                               }}
                             >
-                              <option value="submitted">আবেদন জমা</option>
-                              <option value="document_verification">ডকুমেন্ট যাচাই</option>
-                              <option value="embassy_processing">এম্বাসি প্রসেসিং</option>
-                              <option value="biometric_pending">বায়োমেট্রিক স্লট</option>
-                              <option value="approved">ভিসা অনুমোদিত</option>
-                              <option value="ready_for_pickup">ডেলিভারি প্রস্তুত</option>
-                              <option value="delivered">ডেলিভারি সম্পন্ন</option>
+                              {getAvailableVisaStatuses(app.serviceType, app.visaType, app.status).map((st) => (
+                                <option key={st.value} value={st.value}>
+                                  {st.label}
+                                </option>
+                              ))}
                             </select>
+                          </td>
+                          {/* Created By Column */}
+                          <td style={{ padding: "14px 18px", fontSize: "0.82rem" }}>
+                            <div style={{ fontWeight: 600, color: "#38bdf8" }}>{creator}</div>
+                            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                              {createDate}
+                            </div>
+                          </td>
+                          {/* Updated By Column */}
+                          <td style={{ padding: "14px 18px", fontSize: "0.82rem" }}>
+                            {updater && updateDate ? (
+                              <>
+                                <div style={{ fontWeight: 600, color: "#a78bfa" }}>{updater}</div>
+                                <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                  {updateDate}
+                                </div>
+                              </>
+                            ) : (
+                              <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>—</span>
+                            )}
                           </td>
                           <td style={{ padding: "14px 18px", textAlign: "right" }}>
                             <div style={{ display: "inline-flex", gap: "6px" }}>
@@ -1558,7 +1618,7 @@ export default function Dashboard() {
             className="glass-panel modal-container"
             style={{
               width: "100%",
-              maxWidth: "560px",
+              maxWidth: "620px",
               padding: "30px",
               background: "var(--bg-modal)",
               border: "1px solid rgba(99, 102, 241, 0.4)",
@@ -1616,24 +1676,27 @@ export default function Dashboard() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <div>
                   <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
-                    গন্তব্য দেশ *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="যেমন: Canada, UK, Saudi Arabia"
-                    value={destinationCountry}
-                    onChange={(e) => setDestinationCountry(e.target.value)}
-                    required
-                    className="input-field"
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
                     সার্ভিস ধরন
                   </label>
                   <select
                     value={serviceType}
-                    onChange={(e) => setServiceType(e.target.value)}
+                    onChange={(e) => {
+                      const newService = e.target.value;
+                      setServiceType(newService);
+                      if (newService === "medical_visa" && (!visaType || visaType.includes("ট্যুরিস্ট") || visaType.includes("Tourist"))) {
+                        setVisaType("মেডিকেল পেশেন্ট (Medical Patient)");
+                      } else if (newService === "medical_attendant") {
+                        setVisaType("মেডিকেল এটেন্ডেন্ট (Medical Attendant)");
+                      } else if (newService === "tourist_visa" && (visaType.includes("মেডিকেল") || visaType.includes("Medical"))) {
+                        setVisaType("ট্যুরিস্ট ভিসা (Tourist Visa)");
+                      }
+                      if (!isMedicalPatient(newService, visaType)) {
+                        const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === status);
+                        if (isCurrentMedStatus) {
+                          setStatus("submitted");
+                        }
+                      }
+                    }}
                     className="input-field"
                   >
                     <option value="tourist_visa">ট্যুরিস্ট ভিসা (Tourist Visa)</option>
@@ -1644,6 +1707,47 @@ export default function Dashboard() {
                     <option value="business_visa">বিজনেস ভিসা (Business Visa)</option>
                     <option value="passport_new">নতুন পাসপোর্ট (Passport New)</option>
                     <option value="passport_renewal">পাসপোর্ট নবায়ন (Passport Renewal)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
+                    ভিসা টাইপ (Visa Type)
+                  </label>
+                  <select
+                    value={visaType}
+                    onChange={(e) => {
+                      const newVType = e.target.value;
+                      setVisaType(newVType);
+                      if (!isMedicalPatient(serviceType, newVType)) {
+                        const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === status);
+                        if (isCurrentMedStatus) {
+                          setStatus("submitted");
+                        }
+                      }
+                    }}
+                    className="input-field"
+                    style={{
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <option value="">-- ভিসা টাইপ নির্বাচন করুন --</option>
+                    <optgroup label="জনপ্রিয় ও নিয়মিত ক্যাটাগরি">
+                      <option value="ট্যুরিস্ট ভিসা (Tourist Visa)">ট্যুরিস্ট ভিসা (Tourist Visa - T1)</option>
+                      <option value="মেডিকেল পেশেন্ট (Medical Patient)">মেডিকেল পেশেন্ট (Medical Patient - M1/M3)</option>
+                      <option value="মেডিকেল এটেন্ডেন্ট (Medical Attendant)">মেডিকেল এটেন্ডেন্ট (Medical Attendant - M2/M4)</option>
+                      <option value="স্টুডেন্ট ভিসা (Student Visa)">স্টুডেন্ট ভিসা (Student Visa - S1)</option>
+                      <option value="বিজনেস ভিসা (Business Visa)">বিজনেস ভিসা (Business Visa - B1)</option>
+                      <option value="ওয়ার্ক পারমিট (Work Permit)">ওয়ার্ক পারমিট (Work Permit - E1)</option>
+                    </optgroup>
+                    <optgroup label="অফিশিয়াল ভিসা কোড তালিকা">
+                      {STRUCTURED_INDIAN_VISA_TYPES.map((item) => (
+                        <option key={item.code} value={item.value}>
+                          {item.title}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
               </div>
@@ -1720,21 +1824,37 @@ export default function Dashboard() {
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
-                  স্ট্যাটাস
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+                    স্ট্যাটাস
+                  </label>
+                  {isMedicalPatient(serviceType, visaType) && (
+                    <span style={{ fontSize: "0.72rem", color: "#34d399", background: "rgba(16, 185, 129, 0.15)", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>
+                      ✓ মেডিকেল পেশেন্ট: ৭টি আয়ুষ/ডাক্তার স্ট্যাটাস সক্রিয়
+                    </span>
+                  )}
+                </div>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
                   className="input-field"
                 >
-                  <option value="submitted">আবেদন জমা (Submitted)</option>
-                  <option value="document_verification">ডকুমেন্ট যাচাই (Document Verification)</option>
-                  <option value="embassy_processing">এম্বাসি প্রসেসিং (Embassy Processing)</option>
-                  <option value="biometric_pending">বায়োমেট্রিক স্লট (Biometric Pending)</option>
-                  <option value="approved">ভিসা অনুমোদিত (Approved)</option>
-                  <option value="ready_for_pickup">ডেলিভারি প্রস্তুত (Ready for Pickup)</option>
-                  <option value="delivered">ডেলিভারি সম্পন্ন (Delivered)</option>
+                  <optgroup label="সাধারণ স্ট্যাটাস">
+                    {VISA_GENERAL_STATUSES.map((st) => (
+                      <option key={st.value} value={st.value}>
+                        {st.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {isMedicalPatient(serviceType, visaType) && (
+                    <optgroup label="শুধু মেডিক্যাল ও আয়ুষ স্পেশাল স্ট্যাটাস">
+                      {VISA_MEDICAL_STATUSES.map((st) => (
+                        <option key={st.value} value={st.value}>
+                          {st.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
 
@@ -1854,8 +1974,8 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Service & Status */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              {/* Service, Visa Type & Status */}
+              <div style={{ display: "grid", gridTemplateColumns: selectedVisa.visaType ? "1fr 1fr 1fr" : "1fr 1fr", gap: "12px" }}>
                 <div>
                   <div style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>সার্ভিস ধরন</div>
                   <div style={{ fontWeight: 600, color: "var(--text-main)", fontSize: "0.9rem" }}>
@@ -1874,6 +1994,14 @@ export default function Dashboard() {
                       : selectedVisa.serviceType}
                   </div>
                 </div>
+                {selectedVisa.visaType && (
+                  <div>
+                    <div style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>ভিসা টাইপ</div>
+                    <div style={{ fontWeight: 600, color: "var(--primary-light, #818cf8)", fontSize: "0.85rem" }}>
+                      {formatVisaTypeDisplay(selectedVisa.visaType)}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <div style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>বর্তমান স্ট্যাটাস</div>
                   <span
@@ -1935,6 +2063,60 @@ export default function Dashboard() {
                   </div>
                 );
               })()}
+
+              {/* Audit Info: Created by & Updated by */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "10px",
+                  padding: "12px 14px",
+                  background: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid var(--border-subtle)",
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: "0.8rem",
+                }}
+              >
+                <div>
+                  <div style={{ color: "var(--text-muted)", fontSize: "0.74rem" }}>ফাইল তৈরি করেছেন:</div>
+                  <div style={{ fontWeight: 600, color: "#38bdf8", marginTop: "2px" }}>
+                    {typeof selectedVisa.createdBy === "object" && selectedVisa.createdBy?.name
+                      ? selectedVisa.createdBy.name
+                      : selectedVisa.createdByName || "সিস্টেম"}
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                    {selectedVisa.createdAt
+                      ? new Date(selectedVisa.createdAt).toLocaleString("bn-BD", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ color: "var(--text-muted)", fontSize: "0.74rem" }}>সর্বশেষ আপডেট:</div>
+                  <div style={{ fontWeight: 600, color: "#a78bfa", marginTop: "2px" }}>
+                    {typeof selectedVisa.updatedBy === "object" && selectedVisa.updatedBy?.name
+                      ? selectedVisa.updatedBy.name
+                      : selectedVisa.updatedByName || "—"}
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                    {selectedVisa.updatedAt
+                      ? new Date(selectedVisa.updatedAt).toLocaleString("bn-BD", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "—"}
+                  </div>
+                </div>
+              </div>
 
               {/* Notes */}
               {selectedVisa.notes && (
@@ -2142,13 +2324,27 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Service Type & Status */}
+              {/* Service Type & Visa Type */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <div>
                   <label className="label-text">সার্ভিস ধরন</label>
                   <select
                     value={editServiceType}
-                    onChange={(e) => setEditServiceType(e.target.value)}
+                    onChange={(e) => {
+                      const newService = e.target.value;
+                      setEditServiceType(newService);
+                      if (newService === "medical_visa" && (!editVisaType || editVisaType.includes("ট্যুরিস্ট") || editVisaType.includes("Tourist"))) {
+                        setEditVisaType("মেডিকেল পেশেন্ট (Medical Patient)");
+                      } else if (newService === "medical_attendant") {
+                        setEditVisaType("মেডিকেল এটেন্ডেন্ট (Medical Attendant)");
+                      }
+                      if (!isMedicalPatient(newService, editVisaType)) {
+                        const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === editStatus);
+                        if (isCurrentMedStatus) {
+                          setEditStatus("submitted");
+                        }
+                      }
+                    }}
                     className="input-field"
                   >
                     <option value="tourist_visa">ট্যুরিস্ট ভিসা (Tourist Visa)</option>
@@ -2162,21 +2358,78 @@ export default function Dashboard() {
                   </select>
                 </div>
                 <div>
-                  <label className="label-text">বর্তমান স্ট্যাটাস</label>
+                  <label className="label-text">ভিসা টাইপ</label>
                   <select
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value)}
+                    value={editVisaType}
+                    onChange={(e) => {
+                      const newVType = e.target.value;
+                      setEditVisaType(newVType);
+                      if (!isMedicalPatient(editServiceType, newVType)) {
+                        const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === editStatus);
+                        if (isCurrentMedStatus) {
+                          setEditStatus("submitted");
+                        }
+                      }
+                    }}
                     className="input-field"
+                    style={{
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                    }}
                   >
-                    <option value="submitted">আবেদন জমা (Submitted)</option>
-                    <option value="document_verification">ডকুমেন্ট যাচাই (Document Verification)</option>
-                    <option value="embassy_processing">এম্বাসি প্রসেসিং (Embassy Processing)</option>
-                    <option value="biometric_pending">বায়োমেট্রিক স্লট (Biometric Pending)</option>
-                    <option value="approved">ভিসা অনুমোদিত (Approved)</option>
-                    <option value="ready_for_pickup">ডেলিভারি প্রস্তুত (Ready for Pickup)</option>
-                    <option value="delivered">ডেলিভারি সম্পন্ন (Delivered)</option>
+                    <option value="">-- ভিসা টাইপ নির্বাচন করুন --</option>
+                    <optgroup label="জনপ্রিয় ও নিয়মিত ক্যাটাগরি">
+                      <option value="ট্যুরিস্ট ভিসা (Tourist Visa)">ট্যুরিস্ট ভিসা (Tourist Visa - T1)</option>
+                      <option value="মেডিকেল পেশেন্ট (Medical Patient)">মেডিকেল পেশেন্ট (Medical Patient - M1/M3)</option>
+                      <option value="মেডিকেল এটেন্ডেন্ট (Medical Attendant)">মেডিকেল এটেন্ডেন্ট (Medical Attendant - M2/M4)</option>
+                      <option value="স্টুডেন্ট ভিসা (Student Visa)">স্টুডেন্ট ভিসা (Student Visa - S1)</option>
+                      <option value="বিজনেস ভিসা (Business Visa)">বিজনেস ভিসা (Business Visa - B1)</option>
+                      <option value="ওয়ার্ক পারমিট (Work Permit)">ওয়ার্ক পারমিট (Work Permit - E1)</option>
+                    </optgroup>
+                    <optgroup label="অফিশিয়াল ভিসা কোড তালিকা">
+                      {STRUCTURED_INDIAN_VISA_TYPES.map((item) => (
+                        <option key={item.code} value={item.value}>
+                          {item.title}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
+              </div>
+
+              {/* Status */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                  <label className="label-text">বর্তমান স্ট্যাটাস</label>
+                  {isMedicalPatient(editServiceType, editVisaType) && (
+                    <span style={{ fontSize: "0.72rem", color: "#34d399", background: "rgba(16, 185, 129, 0.15)", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>
+                      ✓ মেডিকেল পেশেন্ট: ৭টি আয়ুষ/ডাক্তার স্ট্যাটাস সক্রিয়
+                    </span>
+                  )}
+                </div>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="input-field"
+                >
+                  <optgroup label="সাধারণ স্ট্যাটাস">
+                    {VISA_GENERAL_STATUSES.map((st) => (
+                      <option key={st.value} value={st.value}>
+                        {st.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {isMedicalPatient(editServiceType, editVisaType) && (
+                    <optgroup label="শুধু মেডিক্যাল ও আয়ুষ স্পেশাল স্ট্যাটাস">
+                      {VISA_MEDICAL_STATUSES.map((st) => (
+                        <option key={st.value} value={st.value}>
+                          {st.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
               </div>
 
               {/* Financial Box */}

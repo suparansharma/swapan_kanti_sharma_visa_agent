@@ -9,14 +9,7 @@ export interface IVisaApplication extends Document {
   destinationCountry: string;
   visaType?: string;
   serviceType: string;
-  status:
-    | "submitted"
-    | "document_verification"
-    | "embassy_processing"
-    | "biometric_pending"
-    | "approved"
-    | "ready_for_pickup"
-    | "delivered";
+  status: string;
   applicationDate: Date;
   estimatedDelivery?: Date;
   feeAmount: number;
@@ -26,6 +19,9 @@ export interface IVisaApplication extends Document {
   feeStatus: "paid" | "partial" | "pending";
   notes?: string;
   createdBy?: mongoose.Types.ObjectId;
+  createdByName?: string;
+  updatedBy?: mongoose.Types.ObjectId;
+  updatedByName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -76,15 +72,6 @@ const VisaApplicationSchema = new Schema<IVisaApplication>(
     },
     status: {
       type: String,
-      enum: [
-        "submitted",
-        "document_verification",
-        "embassy_processing",
-        "biometric_pending",
-        "approved",
-        "ready_for_pickup",
-        "delivered",
-      ],
       default: "submitted",
     },
     applicationDate: {
@@ -122,6 +109,18 @@ const VisaApplicationSchema = new Schema<IVisaApplication>(
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
+    },
+    createdByName: {
+      type: String,
+      default: "",
+    },
+    updatedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    updatedByName: {
+      type: String,
+      default: "",
     },
   },
   {

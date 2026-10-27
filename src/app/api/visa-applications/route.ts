@@ -33,6 +33,8 @@ export async function GET(request: Request) {
     }
 
     const applications = await VisaApplication.find(query)
+      .populate("createdBy", "name email")
+      .populate("updatedBy", "name email")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -54,8 +56,8 @@ export async function GET(request: Request) {
       totalCollectedAmount += paid;
       totalDueAmount += due;
 
-      if (v.status === "approved") approvedCount++;
-      else if (v.status === "ready_for_pickup" || v.status === "delivered") readyCount++;
+      if (v.status === "approved" || v.status === "delivery_completed" || v.status === "dr_ayush_done") approvedCount++;
+      else if (v.status === "ready_for_delivery" || v.status === "ready_for_pickup" || v.status === "delivered") readyCount++;
       else processingCount++;
     }
 
@@ -166,6 +168,7 @@ export async function POST(request: Request) {
       estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : undefined,
       notes: notes || "",
       createdBy: authUser?.userId ? (authUser.userId as unknown as string) : undefined,
+      createdByName: authUser?.name || "",
     });
 
     return NextResponse.json(
@@ -183,6 +186,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     await connectToDatabase();
+    const authUser = await getAuthUser();
     const body = await request.json();
     const {
       id,
@@ -217,6 +221,11 @@ export async function PUT(request: Request) {
     if (feeStatus) updateFields.feeStatus = feeStatus;
     if (notes !== undefined) updateFields.notes = notes;
     if (estimatedDelivery) updateFields.estimatedDelivery = new Date(estimatedDelivery);
+
+    if (authUser?.userId) {
+      updateFields.updatedBy = authUser.userId;
+      updateFields.updatedByName = authUser.name || "";
+    }
 
     if (totalAmount !== undefined || paidAmount !== undefined) {
       const current = await VisaApplication.findById(id);

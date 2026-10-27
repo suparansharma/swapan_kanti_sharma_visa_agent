@@ -1,171 +1,24 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import Dashboard from "@/components/Dashboard";
 import {
   Plane,
   FileText,
   CheckCircle2,
-  Clock,
-  Search,
-  Lock,
-  Mail,
-  ArrowRight,
-  Eye,
-  EyeOff,
-  AlertCircle,
   Globe,
   Building2,
   ShieldCheck,
-  Award,
   Sparkles,
   Calendar,
-  BadgeCheck,
-  FileSearch,
-  MapPin,
   PhoneCall,
-  RefreshCw,
-  ChevronRight,
-  UserCheck,
+  ArrowRight,
+  Headphones,
 } from "lucide-react";
 
-interface TrackedApplication {
-  trackingId: string;
-  applicantName: string;
-  passportNumber: string;
-  phone: string;
-  destinationCountry: string;
-  serviceType: string;
-  status: string;
-  applicationDate: string;
-  estimatedDelivery?: string;
-  notes?: string;
-}
-
 export default function HomePage() {
-  const { user, loading, login } = useAuth();
-
-  // Admin login form state
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  // Live Tracking widget state
-  const [trackingInput, setTrackingInput] = useState("");
-  const [trackingLoading, setTrackingLoading] = useState(false);
-  const [trackedApp, setTrackedApp] = useState<TrackedApplication | null>(null);
-  const [trackingError, setTrackingError] = useState<string | null>(null);
-
-
-
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    setSubmitting(true);
-
-    const res = await login(email, password);
-    if (!res.success) {
-      setAuthError(res.error || "লগইন ব্যর্থ হয়েছে। সঠিক ইমেইল ও পাসওয়ার্ড দিন।");
-    }
-
-    setSubmitting(false);
-  };
-
-  // Tracking query handler
-  const handleTrackSubmit = async (queryToSearch?: string) => {
-    const query = (queryToSearch || trackingInput).trim();
-    if (!query) {
-      setTrackingError("অনুগ্রহ করে ট্র্যাকিং আইডি অথবা পাসপোর্ট নম্বর লিখুন।");
-      return;
-    }
-
-    setTrackingLoading(true);
-    setTrackingError(null);
-    setTrackedApp(null);
-
-    try {
-      const res = await fetch(`/api/tracking?query=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setTrackedApp(data.application);
-      } else {
-        setTrackingError(
-          data.error || "কোনো ফাইল খুঁজে পাওয়া যায়নি। নম্বরটি আবার চেক করুন।"
-        );
-      }
-    } catch (err) {
-      setTrackingError("সার্ভারের সাথে সংযোগ করা যাচ্ছে না। একটু পর চেষ্টা করুন।");
-    } finally {
-      setTrackingLoading(false);
-    }
-  };
-
-  // Helper for status progress steps
-  const getStatusStep = (status: string) => {
-    switch (status) {
-      case "submitted":
-        return 1;
-      case "document_verification":
-        return 2;
-      case "embassy_processing":
-      case "biometric_pending":
-        return 3;
-      case "approved":
-      case "ready_for_pickup":
-      case "delivered":
-        return 4;
-      default:
-        return 1;
-    }
-  };
-
-  const getServiceLabel = (type: string) => {
-    switch (type) {
-      case "passport_new":
-        return "নতুন ই-পাসপোর্ট আবেদন";
-      case "passport_renewal":
-        return "পাসপোর্ট নবায়ন (Renewal)";
-      case "tourist_visa":
-        return "ট্যুরিস্ট / ভিজিট ভিসা";
-      case "medical_visa":
-        return "মেডিকেল ভিসা (Medical Visa)";
-      case "medical_attendant":
-        return "মেডিকেল এটেন্ডেন্ট (Medical Attendant)";
-      case "student_visa":
-        return "স্টুডেন্ট ভিসা";
-      case "work_permit":
-        return "ওয়ার্ক পারমিট ভিসা";
-      case "business_visa":
-        return "বিজনেস ভিসা";
-      default:
-        return type;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "submitted":
-        return { label: "আবেদন জমা হয়েছে", bg: "rgba(99, 102, 241, 0.15)", color: "#818cf8" };
-      case "document_verification":
-        return { label: "ডকুমেন্ট যাচাই চলছে", bg: "rgba(245, 158, 11, 0.15)", color: "#fbbf24" };
-      case "embassy_processing":
-        return { label: "এম্বাসিতে প্রসেসিং চলছে", bg: "rgba(14, 165, 233, 0.15)", color: "#38bdf8" };
-      case "biometric_pending":
-        return { label: "বায়োমেট্রিক শিডিউলড", bg: "rgba(236, 72, 153, 0.15)", color: "#f472b6" };
-      case "approved":
-        return { label: "ভিসা অনুমোদিত (Approved)", bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
-      case "ready_for_pickup":
-        return { label: "পাসপোর্ট ডেলিভারির জন্য প্রস্তুত", bg: "rgba(16, 185, 129, 0.25)", color: "#10b981" };
-      case "delivered":
-        return { label: "ক্লায়েন্টকে ডেলিভারি সম্পন্ন", bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" };
-      default:
-        return { label: status, bg: "rgba(255, 255, 255, 0.1)", color: "#ffffff" };
-    }
-  };
+  const { user, loading } = useAuth();
 
   // If loading session, show sleek spinner
   if (loading) {
@@ -205,14 +58,7 @@ export default function HomePage() {
     );
   }
 
-  // If user is logged in, show the interactive Visa Operations Dashboard
-  if (user) {
-    return (
-      <Suspense fallback={<div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>ড্যাশবোর্ড লোড হচ্ছে...</div>}>
-        <Dashboard />
-      </Suspense>
-    );
-  }
+
 
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column" }}>
@@ -301,7 +147,7 @@ export default function HomePage() {
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                স্মার্ট প্রসেসিং ও ফাইল ট্র্যাকিং
+                স্মার্ট ও নির্ভরযোগ্য কনসালটেন্সি
               </span>
             </h1>
 
@@ -320,13 +166,13 @@ export default function HomePage() {
 
             {/* Quick Action Buttons */}
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "36px" }}>
-              <a href="#tracking" className="btn-primary" style={{ padding: "14px 28px" }}>
-                <Search size={18} />
-                <span>ফাইল স্ট্যাটাস ট্র্যাক করুন</span>
+              <a href="#services" className="btn-primary" style={{ padding: "14px 28px" }}>
+                <FileText size={18} />
+                <span>আমাদের সার্ভিসেস দেখুন</span>
               </a>
-              <a href="#services" className="btn-secondary" style={{ padding: "14px 26px" }}>
-                <FileText size={16} />
-                <span>আমাদের সার্ভিসেস</span>
+              <a href="#contact" className="btn-secondary" style={{ padding: "14px 26px" }}>
+                <PhoneCall size={16} />
+                <span>সরাসরি যোগাযোগ করুন</span>
               </a>
             </div>
 
@@ -350,22 +196,22 @@ export default function HomePage() {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                 <CheckCircle2 size={16} style={{ color: "#34d399" }} />
-                <span>নিরাপদ ক্লায়েন্ট ডাটাবেস</span>
+                <span>অভিজ্ঞ কনসালটেন্সি</span>
               </div>
             </div>
           </div>
 
-          {/* Right Column: Dedicated Admin Sign In Card */}
+          {/* Right Column: Agency Highlights & Fast Processing Card */}
           <div>
             <div
               className="glass-panel"
               style={{
                 padding: "36px",
-                background: "rgba(16, 22, 38, 0.92)",
-                border: "1px solid rgba(99, 102, 241, 0.35)",
+                background: "var(--bg-modal)",
+                border: "1px solid var(--border-subtle)",
                 position: "relative",
                 overflow: "hidden",
-                boxShadow: "0 20px 50px rgba(0, 0, 0, 0.4)",
+                boxShadow: "var(--card-shadow)",
               }}
             >
               {/* Decorative accent glow */}
@@ -376,7 +222,7 @@ export default function HomePage() {
                   right: "-50px",
                   width: "160px",
                   height: "160px",
-                  background: "rgba(99, 102, 241, 0.25)",
+                  background: "rgba(56, 189, 248, 0.15)",
                   borderRadius: "50%",
                   filter: "blur(40px)",
                   pointerEvents: "none",
@@ -403,10 +249,10 @@ export default function HomePage() {
                       marginBottom: "4px",
                     }}
                   >
-                    অ্যাডমিন সাইন-ইন
+                    শর্মা ভিসা ও পাসপোর্ট সার্ভিসেস
                   </h3>
                   <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)", margin: 0 }}>
-                    ভিসা ও পাসপোর্ট ক্লায়েন্ট ডাটাবেস এক্সেস
+                    গ্লোবাল ভিসা ও এম্বাসি ডকুমেন্ট ম্যানেজমেন্ট
                   </p>
                 </div>
                 <div
@@ -424,147 +270,81 @@ export default function HomePage() {
                   }}
                 >
                   <ShieldCheck size={14} />
-                  <span>Authorized</span>
+                  <span>বিশ্বস্ত সেবা</span>
                 </div>
               </div>
 
-
-
-              {/* Error Banner */}
-              {authError && (
-                <div
-                  style={{
-                    background: "rgba(244, 63, 94, 0.12)",
-                    border: "1px solid rgba(244, 63, 94, 0.35)",
-                    color: "#f87171",
-                    padding: "10px 14px",
-                    borderRadius: "var(--radius-md)",
-                    fontSize: "0.82rem",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    marginBottom: "16px",
-                  }}
-                >
-                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
-                  <span>{authError}</span>
-                </div>
-              )}
-
-              {/* Sign In Form */}
-              <form onSubmit={handleAdminLogin} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div>
-                  <label
+              {/* Service Highlights List */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                {[
+                  {
+                    title: "ই-পাসপোর্ট জরুরি আবেদন ও নবায়ন",
+                    desc: "১০-বছর ও ৫-বছরের ই-পাসপোর্ট ফরম ফিলাপ ও অ্যাপয়েন্টমেন্ট সাপোর্ট।",
+                    icon: "📄",
+                  },
+                  {
+                    title: "কানাডা, ইউকে ও ইউরোপ ভিসা ফাইল",
+                    desc: "স্টুডেন্ট, ভিজিট ও ওয়ার্ক পারমিটের জন্য নির্ভুল ডকুমেন্ট প্রিপারেশন।",
+                    icon: "✈️",
+                  },
+                  {
+                    title: "পররাষ্ট্র মন্ত্রণালয় সত্যায়ন ও নোটারি",
+                    desc: "সনদপত্র অনুবাদ, নোটারি ও এম্বাসি লিগ্যালাইজেশন পূর্ণ সহায়তা।",
+                    icon: "🏛️",
+                  },
+                ].map((item, i) => (
+                  <div
+                    key={i}
                     style={{
-                      display: "block",
-                      fontSize: "0.84rem",
-                      fontWeight: 600,
-                      color: "var(--text-secondary)",
-                      marginBottom: "6px",
+                      padding: "14px 16px",
+                      background: "rgba(255, 255, 255, 0.03)",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--border-subtle)",
+                      display: "flex",
+                      gap: "14px",
+                      alignItems: "flex-start",
                     }}
                   >
-                    ইউজার আইডি (ইমেইল অ্যাড্রেস)
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <Mail
-                      size={17}
-                      style={{
-                        position: "absolute",
-                        left: "14px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "var(--text-muted)",
-                      }}
-                    />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="admin@sharma.com"
-                      required
-                      className="input-field"
-                      style={{ paddingLeft: "42px" }}
-                    />
+                    <span style={{ fontSize: "1.4rem", lineHeight: 1 }}>{item.icon}</span>
+                    <div>
+                      <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--text-main)", marginBottom: "3px" }}>
+                        {item.title}
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                        {item.desc}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
+              </div>
 
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.84rem",
-                      fontWeight: 600,
-                      color: "var(--text-secondary)",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    পাসওয়ার্ড
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <Lock
-                      size={17}
-                      style={{
-                        position: "absolute",
-                        left: "14px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "var(--text-muted)",
-                      }}
-                    />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      required
-                      className="input-field"
-                      style={{ paddingLeft: "42px", paddingRight: "42px" }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      style={{
-                        position: "absolute",
-                        right: "12px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        background: "transparent",
-                        border: "none",
-                        color: "var(--text-muted)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="btn-primary"
-                  style={{ width: "100%", marginTop: "8px", padding: "13px" }}
-                >
-                  {submitting ? (
-                    <span>ভিসা ডাটাবেসে কানেক্ট হচ্ছে...</span>
-                  ) : (
-                    <>
-                      <span>পোর্টালে প্রবেশ করুন</span>
-                      <ArrowRight size={17} />
-                    </>
-                  )}
-                </button>
-              </form>
-
+              {/* Call to action at bottom of card */}
               <div
                 style={{
-                  marginTop: "18px",
-                  textAlign: "center",
-                  fontSize: "0.78rem",
-                  color: "var(--text-muted)",
+                  marginTop: "20px",
+                  paddingTop: "16px",
+                  borderTop: "1px solid var(--border-subtle)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  fontSize: "0.82rem",
                 }}
               >
-                নিরাপদ এনক্রিপশন ও সেশন প্রটেকশন সক্রিয় রয়েছে
+                <span style={{ color: "var(--text-muted)" }}>হটলাইন পরামর্শ:</span>
+                <a
+                  href="tel:+8801715144329"
+                  style={{
+                    color: "var(--primary)",
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <PhoneCall size={14} />
+                  <span>+880 1715-144329</span>
+                </a>
               </div>
             </div>
           </div>
@@ -576,7 +356,7 @@ export default function HomePage() {
         style={{
           borderTop: "1px solid var(--border-subtle)",
           borderBottom: "1px solid var(--border-subtle)",
-          background: "rgba(16, 22, 38, 0.4)",
+          background: "var(--bg-subtle-box)",
           padding: "36px 24px",
         }}
       >
@@ -611,326 +391,13 @@ export default function HomePage() {
           <div>
             <div style={{ fontSize: "2.2rem", fontWeight: 900, color: "#f472b6" }}>২৪/৭</div>
             <div style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginTop: "4px" }}>
-              অনলাইন ফাইল স্ট্যাটাস ট্র্যাকিং
+              অভিজ্ঞ কনসালটেন্সি ও ফাইল সাপোর্ট
             </div>
           </div>
         </div>
       </section>
 
-      {/* INTERACTIVE VISA & PASSPORT TRACKER SECTION */}
-      <section
-        id="tracking"
-        style={{
-          padding: "70px 24px",
-          maxWidth: "1000px",
-          margin: "0 auto",
-          width: "100%",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: "36px" }}>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "5px 14px",
-              borderRadius: "var(--radius-full)",
-              background: "rgba(56, 189, 248, 0.12)",
-              border: "1px solid rgba(56, 189, 248, 0.3)",
-              color: "#38bdf8",
-              fontSize: "0.8rem",
-              fontWeight: 600,
-              marginBottom: "12px",
-            }}
-          >
-            <FileSearch size={14} />
-            <span>অনলাইন ফাইল ট্র্যাকিং</span>
-          </div>
-          <h2
-            style={{
-              fontSize: "2.1rem",
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-              color: "var(--text-main)",
-              marginBottom: "10px",
-            }}
-          >
-            আপনার পাসপোর্ট ও ভিসা স্ট্যাটাস চেক করুন
-          </h2>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
-            আপনার ট্র্যাকিং আইডি অথবা পাসপোর্ট নম্বর দিয়ে যেকোনো সময় ফাইলের বর্তমান অবস্থান জানুন।
-          </p>
-        </div>
 
-        {/* Search Box Card */}
-        <div
-          className="glass-panel"
-          style={{
-            padding: "32px",
-            background: "rgba(16, 22, 38, 0.8)",
-            border: "1px solid rgba(99, 102, 241, 0.3)",
-          }}
-        >
-          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-            <div style={{ flex: 1, minWidth: "260px", position: "relative" }}>
-              <Search
-                size={18}
-                style={{
-                  position: "absolute",
-                  left: "14px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "var(--text-muted)",
-                }}
-              />
-              <input
-                type="text"
-                value={trackingInput}
-                onChange={(e) => setTrackingInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleTrackSubmit();
-                }}
-                placeholder="যেমন: VS-001 অথবা পাসপোর্ট নং A08492014"
-                className="input-field"
-                style={{ paddingLeft: "42px", height: "48px", fontSize: "0.95rem" }}
-              />
-            </div>
-            <button
-              onClick={() => handleTrackSubmit()}
-              disabled={trackingLoading}
-              className="btn-primary"
-              style={{ padding: "0 28px", height: "48px", whiteSpace: "nowrap" }}
-            >
-              {trackingLoading ? (
-                <span>যাচাই হচ্ছে...</span>
-              ) : (
-                <>
-                  <Search size={16} />
-                  <span>ট্র্যাক করুন</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Quick Demo Search Pills */}
-          <div
-            style={{
-              marginTop: "16px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              flexWrap: "wrap",
-              fontSize: "0.8rem",
-              color: "var(--text-muted)",
-            }}
-          >
-            <span>ডেমো ফাইল দিয়ে ট্র্যাকিং দেখুন:</span>
-            {[
-              { id: "VS-001", label: "ইন্ডিয়ান ভিসা" },
-              { id: "PS-001", label: "পাসপোর্ট সার্ভিস" },
-              { id: "SH-VISA-3042", label: "কানাডা স্টুডেন্ট ভিসা" },
-              { id: "SH-VISA-5089", label: "ইউকে ট্যুরিস্ট ভিসা" },
-            ].map((pill) => (
-              <button
-                key={pill.id}
-                type="button"
-                onClick={() => {
-                  setTrackingInput(pill.id);
-                  handleTrackSubmit(pill.id);
-                }}
-                style={{
-                  background: "rgba(255, 255, 255, 0.05)",
-                  border: "1px solid var(--border-subtle)",
-                  color: "var(--text-secondary)",
-                  padding: "4px 10px",
-                  borderRadius: "6px",
-                  fontSize: "0.76rem",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-              >
-                {pill.id} ({pill.label})
-              </button>
-            ))}
-          </div>
-
-          {/* Tracking Error */}
-          {trackingError && (
-            <div
-              style={{
-                marginTop: "20px",
-                padding: "12px 16px",
-                background: "rgba(244, 63, 94, 0.12)",
-                border: "1px solid rgba(244, 63, 94, 0.3)",
-                color: "#f87171",
-                borderRadius: "var(--radius-md)",
-                fontSize: "0.88rem",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-              }}
-            >
-              <AlertCircle size={18} style={{ flexShrink: 0 }} />
-              <span>{trackingError}</span>
-            </div>
-          )}
-
-          {/* Tracking Result Card */}
-          {trackedApp && (
-            <div
-              style={{
-                marginTop: "24px",
-                padding: "24px",
-                background: "rgba(255, 255, 255, 0.02)",
-                border: "1px solid rgba(99, 102, 241, 0.3)",
-                borderRadius: "var(--radius-md)",
-              }}
-            >
-              {/* Result Header */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  flexWrap: "wrap",
-                  gap: "14px",
-                  paddingBottom: "18px",
-                  borderBottom: "1px solid var(--border-subtle)",
-                  marginBottom: "20px",
-                }}
-              >
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
-                    <h3 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--text-main)" }}>
-                      {trackedApp.applicantName}
-                    </h3>
-                    <span
-                      style={{
-                        padding: "3px 10px",
-                        borderRadius: "var(--radius-full)",
-                        background: getStatusBadge(trackedApp.status).bg,
-                        color: getStatusBadge(trackedApp.status).color,
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {getStatusBadge(trackedApp.status).label}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                    ট্র্যাকিং আইডি: <strong style={{ color: "#38bdf8" }}>{trackedApp.trackingId}</strong> &bull; পাসপোর্ট নম্বর:{" "}
-                    <strong style={{ color: "var(--text-main)" }}>{trackedApp.passportNumber}</strong>
-                  </div>
-                </div>
-
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>গন্তব্য দেশ / বিভাগ:</div>
-                  <div style={{ fontSize: "1rem", fontWeight: 700, color: "#34d399" }}>
-                    {trackedApp.destinationCountry}
-                  </div>
-                  <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
-                    সার্ভিস: {getServiceLabel(trackedApp.serviceType)}
-                  </div>
-                </div>
-              </div>
-
-              {/* 4-Step Progress Visualizer */}
-              <div style={{ marginBottom: "24px" }}>
-                <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "16px" }}>
-                  ফাইলের বর্তমান অগ্রগতি (Progress Timeline):
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(4, 1fr)",
-                    gap: "8px",
-                    position: "relative",
-                  }}
-                >
-                  {[
-                    { step: 1, title: "১. ফাইল জমা", desc: "আবেদনপত্র গৃহীত" },
-                    { step: 2, title: "২. ডকুমেন্ট ভেরিফিকেশন", desc: "কাগজপত্র যাচাই সম্পন্ন" },
-                    { step: 3, title: "৩. এম্বাসি প্রসেসিং", desc: "বায়োমেট্রিক ও ভিসা ফাইল" },
-                    { step: 4, title: "৪. ডেলিভারি প্রস্তুত", desc: "পাসপোর্ট হ্যান্ডওভার" },
-                  ].map((s) => {
-                    const currentStep = getStatusStep(trackedApp.status);
-                    const isDone = currentStep >= s.step;
-                    const isCurrent = currentStep === s.step;
-
-                    return (
-                      <div
-                        key={s.step}
-                        style={{
-                          padding: "12px",
-                          borderRadius: "var(--radius-sm)",
-                          background: isCurrent
-                            ? "rgba(99, 102, 241, 0.15)"
-                            : isDone
-                            ? "rgba(16, 185, 129, 0.08)"
-                            : "rgba(255, 255, 255, 0.02)",
-                          border: isCurrent
-                            ? "1px solid rgba(99, 102, 241, 0.5)"
-                            : isDone
-                            ? "1px solid rgba(16, 185, 129, 0.3)"
-                            : "1px solid var(--border-subtle)",
-                          textAlign: "center",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: "24px",
-                            height: "24px",
-                            borderRadius: "50%",
-                            margin: "0 auto 6px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                            background: isDone ? "#10b981" : "rgba(255, 255, 255, 0.1)",
-                            color: "#fff",
-                          }}
-                        >
-                          {isDone ? "✓" : s.step}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "0.78rem",
-                            fontWeight: 700,
-                            color: isDone ? "var(--text-main)" : "var(--text-muted)",
-                          }}
-                        >
-                          {s.title}
-                        </div>
-                        <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                          {s.desc}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Note / Details */}
-              {trackedApp.notes && (
-                <div
-                  style={{
-                    padding: "12px 16px",
-                    background: "rgba(99, 102, 241, 0.06)",
-                    borderLeft: "3px solid #6366f1",
-                    borderRadius: "4px",
-                    fontSize: "0.85rem",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  <strong style={{ color: "#a5b4fc" }}>অফিসিয়াল আপডেট নোট:</strong> {trackedApp.notes}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
 
       {/* CORE SERVICES SECTION */}
       <section
@@ -1238,22 +705,37 @@ export default function HomePage() {
 
       {/* FOOTER CALL TO ACTION */}
       <section
+        id="contact"
         style={{
           borderTop: "1px solid var(--border-subtle)",
-          background: "linear-gradient(180deg, rgba(16, 22, 38, 0.4) 0%, rgba(7, 9, 14, 0.9) 100%)",
+          background: "var(--bg-subtle-box)",
           padding: "60px 24px",
           textAlign: "center",
         }}
       >
         <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-          <h2 style={{ fontSize: "1.9rem", fontWeight: 800, marginBottom: "14px" }}>
+          <h2 style={{ fontSize: "1.9rem", fontWeight: 800, color: "var(--text-main)", marginBottom: "14px" }}>
             ভিসা ও পাসপোর্ট সংক্রান্ত পরামর্শ প্রয়োজন?
           </h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: 1.6, marginBottom: "28px" }}>
             শর্মা ভিসা ও পাসপোর্ট সার্ভিসেস আপনার ফাইল প্রসেসিং এবং এম্বাসি সংক্রান্ত যেকোনো সহায়তায় প্রস্তুত।
           </p>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "10px", padding: "10px 22px", borderRadius: "var(--radius-full)", background: "rgba(99, 102, 241, 0.12)", border: "1px solid rgba(99, 102, 241, 0.3)", color: "#818cf8", fontWeight: 600 }}>
-            <PhoneCall size={16} />
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "10px",
+              padding: "12px 26px",
+              borderRadius: "var(--radius-full)",
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-highlight)",
+              color: "var(--primary)",
+              fontWeight: 700,
+              fontSize: "0.95rem",
+              boxShadow: "var(--card-shadow)",
+            }}
+          >
+            <PhoneCall size={18} />
             <span>সরাসরি যোগাযোগ ও হটলাইন: +880 1715-144329</span>
           </div>
         </div>

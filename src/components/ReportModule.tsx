@@ -21,6 +21,11 @@ import {
   Check,
 } from "lucide-react";
 import { PASSPORT_TYPE_OPTIONS } from "@/components/PassportEntryModule";
+import {
+  getVisaStatusBadge,
+  VISA_GENERAL_STATUSES,
+  VISA_MEDICAL_STATUSES,
+} from "@/constants/visaStatuses";
 
 interface ReportSummary {
   totalApplications: number;
@@ -203,26 +208,10 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
   };
 
   const getStatusBadge = (s: string) => {
-    switch (s) {
-      case "submitted":
-        return { label: "আবেদন জমা", bg: "rgba(99, 102, 241, 0.15)", color: "#818cf8" };
-      case "biometric_pending":
-        return { label: "বায়োমেট্রিক বাকি", bg: "rgba(236, 72, 153, 0.15)", color: "#f472b6" };
-      case "police_verification":
-        return { label: "পুলিশ ভেরিফিকেশন", bg: "rgba(245, 158, 11, 0.15)", color: "#fbbf24" };
-      case "document_verification":
-        return { label: "ডকুমেন্ট যাচাই", bg: "rgba(245, 158, 11, 0.15)", color: "#fbbf24" };
-      case "embassy_processing":
-        return { label: "এম্বাসি প্রসেসিং", bg: "rgba(14, 165, 233, 0.15)", color: "#38bdf8" };
-      case "approved":
-        return { label: "ভিসা অনুমোদিত", bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
-      case "ready_for_pickup":
-        return { label: "পাসপোর্ট/ডেলিভারি রেডি", bg: "rgba(16, 185, 129, 0.25)", color: "#10b981" };
-      case "delivered":
-        return { label: "ডেলিভারি সম্পন্ন", bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" };
-      default:
-        return { label: s, bg: "rgba(255, 255, 255, 0.1)", color: "#ffffff" };
+    if (s === "police_verification") {
+      return { label: "পুলিশ ভেরিফিকেশন", bg: "rgba(245, 158, 11, 0.15)", color: "#fbbf24" };
     }
+    return getVisaStatusBadge(s);
   };
 
   return (
@@ -541,13 +530,20 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
                   style={{ height: "38px", fontSize: "0.85rem", padding: "0 10px" }}
                 >
                   <option value="all">সকল স্ট্যাটাস</option>
-                  <option value="submitted">আবেদন জমা</option>
-                  <option value="document_verification">ডকুমেন্ট যাচাই</option>
-                  <option value="embassy_processing">এম্বাসি প্রসেসিং</option>
-                  <option value="biometric_pending">বায়োমেট্রিক স্লট</option>
-                  <option value="approved">ভিসা অনুমোদিত</option>
-                  <option value="ready_for_pickup">ডেলিভারি প্রস্তুত</option>
-                  <option value="delivered">ডেলিভারি সম্পন্ন</option>
+                  <optgroup label="সাধারণ স্ট্যাটাস">
+                    {VISA_GENERAL_STATUSES.map((st) => (
+                      <option key={st.value} value={st.value}>
+                        {st.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="মেডিকেল / আয়ুষ স্পেশাল">
+                    {VISA_MEDICAL_STATUSES.map((st) => (
+                      <option key={st.value} value={st.value}>
+                        {st.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
             </>

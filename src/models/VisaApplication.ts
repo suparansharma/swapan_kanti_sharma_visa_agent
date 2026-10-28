@@ -17,6 +17,7 @@ export interface IVisaApplication extends Document {
   paidAmount: number;  // সে কত টাকা দিছে
   dueAmount: number;   // বকেয়া টাকা
   feeStatus: "paid" | "partial" | "pending";
+  receivedDate?: string; // রিসিভ তারিখ / Received Date
   notes?: string;
   createdBy?: mongoose.Types.ObjectId;
   createdByName?: string;
@@ -101,6 +102,11 @@ const VisaApplicationSchema = new Schema<IVisaApplication>(
       type: String,
       enum: ["paid", "partial", "pending"],
       default: "pending",
+    },
+    receivedDate: {
+      type: String,
+      default: "",
+      trim: true,
     },
     notes: {
       type: String,

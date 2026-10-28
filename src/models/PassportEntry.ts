@@ -18,6 +18,7 @@ export interface IPassportEntry extends Document {
     | "police_verification"
     | "ready_for_pickup"
     | "delivered";
+  receivedDate?: string; // রিসিভ তারিখ / Received Date
   deliveryDate?: Date;
   notes?: string;
   createdBy?: mongoose.Types.ObjectId;
@@ -96,6 +97,11 @@ const PassportEntrySchema = new Schema<IPassportEntry>(
         "delivered",
       ],
       default: "submitted",
+    },
+    receivedDate: {
+      type: String,
+      default: "",
+      trim: true,
     },
     deliveryDate: {
       type: Date,

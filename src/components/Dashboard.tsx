@@ -79,6 +79,7 @@ interface VisaApplicationItem {
   paidAmount?: number;
   dueAmount?: number;
   feeStatus: "paid" | "partial" | "pending";
+  receivedDate?: string;
   notes?: string;
   createdBy?: { _id: string; name: string; email?: string } | string;
   createdByName?: string;
@@ -207,6 +208,7 @@ export default function Dashboard() {
   const [destinationCountry, setDestinationCountry] = useState("India");
   const [serviceType, setServiceType] = useState("tourist_visa");
   const [visaType, setVisaType] = useState("");
+  const [visaReceivedDate, setVisaReceivedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [status, setStatus] = useState("submitted");
   const [totalAmount, setTotalAmount] = useState<number | "">("");
   const [paidAmount, setPaidAmount] = useState<number | "">("");
@@ -223,6 +225,7 @@ export default function Dashboard() {
   const [editDestinationCountry, setEditDestinationCountry] = useState("India");
   const [editServiceType, setEditServiceType] = useState("tourist_visa");
   const [editVisaType, setEditVisaType] = useState("");
+  const [editVisaReceivedDate, setEditVisaReceivedDate] = useState("");
   const [editStatus, setEditStatus] = useState("submitted");
   const [editTotalAmount, setEditTotalAmount] = useState<number | "">("");
   const [editPaidAmount, setEditPaidAmount] = useState<number | "">("");
@@ -301,6 +304,7 @@ export default function Dashboard() {
           destinationCountry,
           serviceType,
           visaType: visaType.trim(),
+          receivedDate: visaReceivedDate || new Date().toISOString().split("T")[0],
           status,
           feeAmount: numVisaTotal,
           totalAmount: numVisaTotal,
@@ -316,6 +320,7 @@ export default function Dashboard() {
         setPhone("");
         setEmail("");
         setVisaType("");
+        setVisaReceivedDate(new Date().toISOString().split("T")[0]);
         setTotalAmount("");
         setPaidAmount("");
         setNotes("");
@@ -362,6 +367,7 @@ export default function Dashboard() {
     setEditDestinationCountry(app.destinationCountry);
     setEditServiceType(app.serviceType);
     setEditVisaType(app.visaType || "");
+    setEditVisaReceivedDate(app.receivedDate || (app.createdAt ? app.createdAt.split("T")[0] : new Date().toISOString().split("T")[0]));
     setEditStatus(app.status);
     const total = app.totalAmount ?? app.feeAmount ?? 0;
     const paid = app.paidAmount ?? (app.feeStatus === "paid" ? total : 0);
@@ -395,6 +401,7 @@ export default function Dashboard() {
           destinationCountry: editDestinationCountry.trim(),
           serviceType: editServiceType,
           visaType: editVisaType.trim(),
+          receivedDate: editVisaReceivedDate,
           status: editStatus,
           totalAmount: numEditVisaTotal,
           paidAmount: numEditVisaPaid,
@@ -2063,6 +2070,18 @@ export default function Dashboard() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <div>
                   <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
+                    রিসিভ তারিখ (Received Date) *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={visaReceivedDate}
+                    onChange={(e) => setVisaReceivedDate(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
                     সার্ভিস ধরন
                   </label>
                   <select
@@ -2096,47 +2115,48 @@ export default function Dashboard() {
                     <option value="passport_renewal">পাসপোর্ট নবায়ন (Passport Renewal)</option>
                   </select>
                 </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
-                    ভিসা টাইপ (Visa Type)
-                  </label>
-                  <select
-                    value={visaType}
-                    onChange={(e) => {
-                      const newVType = e.target.value;
-                      setVisaType(newVType);
-                      if (!isMedicalPatient(serviceType, newVType)) {
-                        const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === status);
-                        if (isCurrentMedStatus) {
-                          setStatus("submitted");
-                        }
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
+                  ভিসা টাইপ (Visa Type)
+                </label>
+                <select
+                  value={visaType}
+                  onChange={(e) => {
+                    const newVType = e.target.value;
+                    setVisaType(newVType);
+                    if (!isMedicalPatient(serviceType, newVType)) {
+                      const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === status);
+                      if (isCurrentMedStatus) {
+                        setStatus("submitted");
                       }
-                    }}
-                    className="input-field"
-                    style={{
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <option value="">-- ভিসা টাইপ নির্বাচন করুন --</option>
-                    <optgroup label="জনপ্রিয় ও নিয়মিত ক্যাটাগরি">
-                      <option value="ট্যুরিস্ট ভিসা (Tourist Visa)">ট্যুরিস্ট ভিসা (Tourist Visa - T1)</option>
-                      <option value="মেডিকেল পেশেন্ট (Medical Patient)">মেডিকেল পেশেন্ট (Medical Patient - M1/M3)</option>
-                      <option value="মেডিকেল এটেন্ডেন্ট (Medical Attendant)">মেডিকেল এটেন্ডেন্ট (Medical Attendant - M2/M4)</option>
-                      <option value="স্টুডেন্ট ভিসা (Student Visa)">স্টুডেন্ট ভিসা (Student Visa - S1)</option>
-                      <option value="বিজনেস ভিসা (Business Visa)">বিজনেস ভিসা (Business Visa - B1)</option>
-                      <option value="ওয়ার্ক পারমিট (Work Permit)">ওয়ার্ক পারমিট (Work Permit - E1)</option>
-                    </optgroup>
-                    <optgroup label="অফিশিয়াল ভিসা কোড তালিকা">
-                      {STRUCTURED_INDIAN_VISA_TYPES.map((item) => (
-                        <option key={item.code} value={item.value}>
-                          {item.title}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </div>
+                    }
+                  }}
+                  className="input-field"
+                  style={{
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                  }}
+                >
+                  <option value="">-- ভিসা টাইপ নির্বাচন করুন --</option>
+                  <optgroup label="জনপ্রিয় ও নিয়মিত ক্যাটাগরি">
+                    <option value="ট্যুরিস্ট ভিসা (Tourist Visa)">ট্যুরিস্ট ভিসা (Tourist Visa - T1)</option>
+                    <option value="মেডিকেল পেশেন্ট (Medical Patient)">মেডিকেল পেশেন্ট (Medical Patient - M1/M3)</option>
+                    <option value="মেডিকেল এটেন্ডেন্ট (Medical Attendant)">মেডিকেল এটেন্ডেন্ট (Medical Attendant - M2/M4)</option>
+                    <option value="স্টুডেন্ট ভিসা (Student Visa)">স্টুডেন্ট ভিসা (Student Visa - S1)</option>
+                    <option value="বিজনেস ভিসা (Business Visa)">বিজনেস ভিসা (Business Visa - B1)</option>
+                    <option value="ওয়ার্ক পারমিট (Work Permit)">ওয়ার্ক পারমিট (Work Permit - E1)</option>
+                  </optgroup>
+                  <optgroup label="অফিশিয়াল ভিসা কোড তালিকা">
+                    {STRUCTURED_INDIAN_VISA_TYPES.map((item) => (
+                      <option key={item.code} value={item.value}>
+                        {item.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
               </div>
 
               {/* Financial Breakdown (লেনদেন ও টাকার হিসাব) */}
@@ -2354,12 +2374,19 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {selectedVisa.email && (
+              {/* Received Date & Email */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <div style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>রিসিভ তারিখ (Received Date)</div>
+                  <div style={{ fontWeight: 700, color: "#38bdf8", fontSize: "0.95rem" }}>
+                    {selectedVisa.receivedDate || (selectedVisa.createdAt ? selectedVisa.createdAt.split("T")[0] : "—")}
+                  </div>
+                </div>
                 <div>
                   <div style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>ইমেইল</div>
-                  <div style={{ color: "var(--text-secondary)", fontSize: "0.88rem" }}>{selectedVisa.email}</div>
+                  <div style={{ color: "var(--text-secondary)", fontSize: "0.88rem" }}>{selectedVisa.email || "দেওয়া নেই"}</div>
                 </div>
-              )}
+              </div>
 
               {/* Service, Visa Type & Status */}
               <div style={{ display: "grid", gridTemplateColumns: selectedVisa.visaType ? "1fr 1fr 1fr" : "1fr 1fr", gap: "12px" }}>
@@ -2711,8 +2738,20 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Service Type & Visa Type */}
+              {/* Received Date & Service Type */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label className="label-text">
+                    রিসিভ তারিখ (Received Date) <span style={{ color: "#f87171" }}>*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editVisaReceivedDate}
+                    onChange={(e) => setEditVisaReceivedDate(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
                 <div>
                   <label className="label-text">সার্ভিস ধরন</label>
                   <select
@@ -2744,45 +2783,46 @@ export default function Dashboard() {
                     <option value="passport_renewal">পাসপোর্ট নবায়ন (Passport Renewal)</option>
                   </select>
                 </div>
-                <div>
-                  <label className="label-text">ভিসা টাইপ</label>
-                  <select
-                    value={editVisaType}
-                    onChange={(e) => {
-                      const newVType = e.target.value;
-                      setEditVisaType(newVType);
-                      if (!isMedicalPatient(editServiceType, newVType)) {
-                        const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === editStatus);
-                        if (isCurrentMedStatus) {
-                          setEditStatus("submitted");
-                        }
+              </div>
+
+              <div>
+                <label className="label-text">ভিসা টাইপ</label>
+                <select
+                  value={editVisaType}
+                  onChange={(e) => {
+                    const newVType = e.target.value;
+                    setEditVisaType(newVType);
+                    if (!isMedicalPatient(editServiceType, newVType)) {
+                      const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === editStatus);
+                      if (isCurrentMedStatus) {
+                        setEditStatus("submitted");
                       }
-                    }}
-                    className="input-field"
-                    style={{
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <option value="">-- ভিসা টাইপ নির্বাচন করুন --</option>
-                    <optgroup label="জনপ্রিয় ও নিয়মিত ক্যাটাগরি">
-                      <option value="ট্যুরিস্ট ভিসা (Tourist Visa)">ট্যুরিস্ট ভিসা (Tourist Visa - T1)</option>
-                      <option value="মেডিকেল পেশেন্ট (Medical Patient)">মেডিকেল পেশেন্ট (Medical Patient - M1/M3)</option>
-                      <option value="মেডিকেল এটেন্ডেন্ট (Medical Attendant)">মেডিকেল এটেন্ডেন্ট (Medical Attendant - M2/M4)</option>
-                      <option value="স্টুডেন্ট ভিসা (Student Visa)">স্টুডেন্ট ভিসা (Student Visa - S1)</option>
-                      <option value="বিজনেস ভিসা (Business Visa)">বিজনেস ভিসা (Business Visa - B1)</option>
-                      <option value="ওয়ার্ক পারমিট (Work Permit)">ওয়ার্ক পারমিট (Work Permit - E1)</option>
-                    </optgroup>
-                    <optgroup label="অফিশিয়াল ভিসা কোড তালিকা">
-                      {STRUCTURED_INDIAN_VISA_TYPES.map((item) => (
-                        <option key={item.code} value={item.value}>
-                          {item.title}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </div>
+                    }
+                  }}
+                  className="input-field"
+                  style={{
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                  }}
+                >
+                  <option value="">-- ভিসা টাইপ নির্বাচন করুন --</option>
+                  <optgroup label="জনপ্রিয় ও নিয়মিত ক্যাটাগরি">
+                    <option value="ট্যুরিস্ট ভিসা (Tourist Visa)">ট্যুরিস্ট ভিসা (Tourist Visa - T1)</option>
+                    <option value="মেডিকেল পেশেন্ট (Medical Patient)">মেডিকেল পেশেন্ট (Medical Patient - M1/M3)</option>
+                    <option value="মেডিকেল এটেন্ডেন্ট (Medical Attendant)">মেডিকেল এটেন্ডেন্ট (Medical Attendant - M2/M4)</option>
+                    <option value="স্টুডেন্ট ভিসা (Student Visa)">স্টুডেন্ট ভিসা (Student Visa - S1)</option>
+                    <option value="বিজনেস ভিসা (Business Visa)">বিজনেস ভিসা (Business Visa - B1)</option>
+                    <option value="ওয়ার্ক পারমিট (Work Permit)">ওয়ার্ক পারমিট (Work Permit - E1)</option>
+                  </optgroup>
+                  <optgroup label="অফিশিয়াল ভিসা কোড তালিকা">
+                    {STRUCTURED_INDIAN_VISA_TYPES.map((item) => (
+                      <option key={item.code} value={item.value}>
+                        {item.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
               </div>
 
               {/* Status */}

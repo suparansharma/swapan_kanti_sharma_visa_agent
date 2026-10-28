@@ -41,6 +41,7 @@ export interface PassportEntryItem {
   paidAmount: number;
   dueAmount: number;
   onlineTrackId?: string;
+  receivedDate?: string;
   status: string;
   deliveryDate?: string;
   notes?: string;
@@ -96,6 +97,7 @@ export default function PassportEntryModule() {
   const [nid, setNid] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [passportType, setPassportType] = useState(PASSPORT_TYPE_OPTIONS[0].value);
+  const [receivedDate, setReceivedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [totalAmount, setTotalAmount] = useState<number | "">("");
   const [paidAmount, setPaidAmount] = useState<number | "">("");
   const [onlineTrackId, setOnlineTrackId] = useState("");
@@ -123,6 +125,7 @@ export default function PassportEntryModule() {
   const [editNid, setEditNid] = useState("");
   const [editBirthDate, setEditBirthDate] = useState("");
   const [editPassportType, setEditPassportType] = useState(PASSPORT_TYPE_OPTIONS[0].value);
+  const [editReceivedDate, setEditReceivedDate] = useState("");
   const [editTotalAmount, setEditTotalAmount] = useState<number | "">("");
   const [editPaidAmount, setEditPaidAmount] = useState<number | "">("");
   const [editOnlineTrackId, setEditOnlineTrackId] = useState("");
@@ -217,6 +220,7 @@ export default function PassportEntryModule() {
           nid: nid.trim(),
           birthDate: birthDate.trim(),
           passportType,
+          receivedDate: receivedDate || new Date().toISOString().split("T")[0],
           totalAmount: numTotal,
           paidAmount: numPaid,
           onlineTrackId: onlineTrackId.trim(),
@@ -234,6 +238,7 @@ export default function PassportEntryModule() {
         setEmail("");
         setNid("");
         setBirthDate("");
+        setReceivedDate(new Date().toISOString().split("T")[0]);
         setTotalAmount("");
         setPaidAmount("");
         setOnlineTrackId("");
@@ -342,6 +347,7 @@ export default function PassportEntryModule() {
     setEditNid(item.nid);
     setEditBirthDate(item.birthDate);
     setEditPassportType(item.passportType || PASSPORT_TYPE_OPTIONS[0].value);
+    setEditReceivedDate(item.receivedDate || (item.createdAt ? item.createdAt.split("T")[0] : new Date().toISOString().split("T")[0]));
     setEditTotalAmount(item.totalAmount);
     setEditPaidAmount(item.paidAmount);
     setEditOnlineTrackId(item.onlineTrackId || "");
@@ -373,6 +379,7 @@ export default function PassportEntryModule() {
           nid: editNid.trim(),
           birthDate: editBirthDate.trim(),
           passportType: editPassportType,
+          receivedDate: editReceivedDate,
           totalAmount: numEditTotal,
           paidAmount: numEditPaid,
           onlineTrackId: editOnlineTrackId.trim(),
@@ -1310,22 +1317,38 @@ export default function PassportEntryModule() {
                 </div>
               </div>
 
-              {/* Field 6: Passport Type */}
-              <div>
-                <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                  পাসপোর্ট ধরন (Passport Type)
-                </label>
-                <select
-                  value={passportType}
-                  onChange={(e) => setPassportType(e.target.value)}
-                  className="input-field"
-                >
-                  {PASSPORT_TYPE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+              {/* Field 6: Passport Type & Received Date */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
+                    পাসপোর্ট ধরন (Passport Type)
+                  </label>
+                  <select
+                    value={passportType}
+                    onChange={(e) => setPassportType(e.target.value)}
+                    className="input-field"
+                  >
+                    {PASSPORT_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
+                    রিসিভ তারিখ (Received Date) *
+                  </label>
+                  <input
+                    type="date"
+                    value={receivedDate}
+                    onChange={(e) => setReceivedDate(e.target.value)}
+                    required
+                    className="input-field"
+                    title="রিসিভ তারিখ নির্বাচন করুন (ডিফল্ট আজকের তারিখ)"
+                  />
+                </div>
               </div>
 
               {/* Online Track ID */}
@@ -1539,6 +1562,12 @@ export default function PassportEntryModule() {
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "var(--text-muted)" }}>জন্মতারিখ:</span>
                 <span>{selectedEntry.birthDate}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--text-muted)" }}>রিসিভ তারিখ (Received Date):</span>
+                <span style={{ fontWeight: 600, color: "#38bdf8" }}>
+                  {selectedEntry.receivedDate || (selectedEntry.createdAt ? selectedEntry.createdAt.split("T")[0] : "—")}
+                </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "var(--text-muted)" }}>পাসপোর্ট ধরন:</span>
@@ -1809,35 +1838,50 @@ export default function PassportEntryModule() {
                 </div>
               </div>
 
-              {/* Passport Type */}
-              <div>
-                <label className="label-text">
-                  পাসপোর্ট ধরন <span style={{ color: "#f87171" }}>*</span>
-                </label>
-                <select
-                  value={editPassportType}
-                  onChange={(e) => setEditPassportType(e.target.value)}
-                  className="input-field"
-                  style={{
-                    color: "var(--text-main)",
-                    backgroundColor: "var(--bg-card)",
-                    lineHeight: "1.5",
-                  }}
-                >
-                  {PASSPORT_TYPE_OPTIONS.map((opt) => (
-                    <option
-                      key={opt.value}
-                      value={opt.value}
-                      style={{
-                        backgroundColor: "var(--bg-card)",
-                        color: "var(--text-main)",
-                        padding: "6px",
-                      }}
-                    >
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+              {/* Passport Type & Received Date */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label className="label-text">
+                    পাসপোর্ট ধরন <span style={{ color: "#f87171" }}>*</span>
+                  </label>
+                  <select
+                    value={editPassportType}
+                    onChange={(e) => setEditPassportType(e.target.value)}
+                    className="input-field"
+                    style={{
+                      color: "var(--text-main)",
+                      backgroundColor: "var(--bg-card)",
+                      lineHeight: "1.5",
+                    }}
+                  >
+                    {PASSPORT_TYPE_OPTIONS.map((opt) => (
+                      <option
+                        key={opt.value}
+                        value={opt.value}
+                        style={{
+                          backgroundColor: "var(--bg-card)",
+                          color: "var(--text-main)",
+                          padding: "6px",
+                        }}
+                      >
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="label-text">
+                    রিসিভ তারিখ (Received Date) <span style={{ color: "#f87171" }}>*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editReceivedDate}
+                    onChange={(e) => setEditReceivedDate(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
               </div>
 
               {/* Online Track ID */}

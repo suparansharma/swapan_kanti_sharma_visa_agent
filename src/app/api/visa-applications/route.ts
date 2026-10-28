@@ -184,6 +184,7 @@ export async function POST(request: Request) {
       totalAmount,
       paidAmount,
       feeStatus,
+      receivedDate,
       estimatedDelivery,
       notes,
     } = body;
@@ -248,6 +249,7 @@ export async function POST(request: Request) {
       paidAmount: numPaid,
       dueAmount: computedDue,
       feeStatus: computedFeeStatus,
+      receivedDate: receivedDate ? receivedDate.trim() : new Date().toISOString().split("T")[0],
       estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : undefined,
       notes: notes || "",
       createdBy: authUser?.userId ? (authUser.userId as unknown as string) : undefined,
@@ -282,6 +284,7 @@ export async function PUT(request: Request) {
       serviceType,
       status,
       feeStatus,
+      receivedDate,
       totalAmount,
       paidAmount,
       notes,
@@ -302,6 +305,7 @@ export async function PUT(request: Request) {
     if (serviceType !== undefined) updateFields.serviceType = serviceType;
     if (status) updateFields.status = status;
     if (feeStatus) updateFields.feeStatus = feeStatus;
+    if (receivedDate !== undefined) updateFields.receivedDate = receivedDate.trim();
     if (notes !== undefined) updateFields.notes = notes;
     if (estimatedDelivery) updateFields.estimatedDelivery = new Date(estimatedDelivery);
 

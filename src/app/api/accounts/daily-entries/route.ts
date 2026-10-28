@@ -3,8 +3,6 @@ import connectToDatabase from "@/lib/mongodb";
 import PassportEntry from "@/models/PassportEntry";
 import VisaApplication from "@/models/VisaApplication";
 
-export const dynamic = "force-dynamic";
-
 export async function GET(request: Request) {
   try {
     await connectToDatabase();

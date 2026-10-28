@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import VisaApplication from "@/models/VisaApplication";
-import VisaCost from "@/models/VisaCost";
 import { getAuthUser } from "@/lib/auth";
 
 export async function GET(request: Request) {
@@ -39,48 +38,11 @@ export async function GET(request: Request) {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Load VisaCost rates to calculate profit dynamically
-    const visaCostDocs = await VisaCost.find().lean();
-    const findCostForApp = (country: string, sType: string) => {
-      const cLower = (country || "").toLowerCase();
-      const sLower = (sType || "").toLowerCase();
-      return (
-        visaCostDocs.find(
-          (c) => c.country.toLowerCase() === cLower && c.visaType.toLowerCase() === sLower
-        ) ||
-        visaCostDocs.find((c) => c.country.toLowerCase() === cLower)
-      );
-    };
-
-    const formattedApplications = applications.map((v) => {
-      const total = Number(v.totalAmount ?? v.feeAmount) || 0;
-      const matched = findCostForApp(v.destinationCountry, v.serviceType);
-      const costAmount =
-        v.costAmount !== undefined && Number(v.costAmount) > 0
-          ? Number(v.costAmount)
-          : matched
-          ? Number(matched.totalCost) || 0
-          : 0;
-      const profitAmount =
-        v.profitAmount !== undefined && Number(v.profitAmount) > 0
-          ? Number(v.profitAmount)
-          : costAmount > 0
-          ? Math.max(0, total - costAmount)
-          : 0;
-
-      return {
-        ...v,
-        costAmount,
-        profitAmount,
-      };
-    });
-
     // Calculate summary statistics for the dashboard
     const allVisas = await VisaApplication.find().lean();
     let totalContractAmount = 0;
     let totalCollectedAmount = 0;
     let totalDueAmount = 0;
-    let totalProfitAmount = 0;
     let approvedCount = 0;
     let processingCount = 0;
     let readyCount = 0;
@@ -94,11 +56,6 @@ export async function GET(request: Request) {
       totalCollectedAmount += paid;
       totalDueAmount += due;
 
-      const matched = findCostForApp(v.destinationCountry, v.serviceType);
-      const c = v.costAmount !== undefined && Number(v.costAmount) > 0 ? Number(v.costAmount) : matched ? Number(matched.totalCost) || 0 : 0;
-      const p = v.profitAmount !== undefined && Number(v.profitAmount) > 0 ? Number(v.profitAmount) : c > 0 ? Math.max(0, total - c) : 0;
-      totalProfitAmount += p;
-
       if (v.status === "approved" || v.status === "delivery_completed" || v.status === "dr_ayush_done") approvedCount++;
       else if (v.status === "ready_for_delivery" || v.status === "ready_for_pickup" || v.status === "delivered") readyCount++;
       else processingCount++;
@@ -106,13 +63,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      applications: formattedApplications,
+      applications,
       stats: {
         total: allVisas.length,
         totalContractAmount,
         totalCollectedAmount,
         totalDueAmount,
-        totalProfitAmount,
         approved: approvedCount,
         processing: processingCount,
         ready: readyCount,
@@ -150,42 +106,13 @@ export async function POST(request: Request) {
     } = body;
 
     const country = (destinationCountry || "India").trim();
-    const sType = serviceType || "tourist_visa";
 
     if (!applicantName || !passportNumber || !phone) {
       return NextResponse.json(
-        { error: "Applicant Name, Passport Number, and Phone are required." },
+        { error: "Applicant name, passport number, and phone are required." },
         { status: 400 }
       );
     }
-
-    const numTotal = Number(totalAmount ?? feeAmount) || 0;
-    const numPaid = Number(paidAmount) || 0;
-    const computedDue = Math.max(0, numTotal - numPaid);
-
-    // Look up matching VisaCost rate
-    const costDoc =
-      (await VisaCost.findOne({
-        country: new RegExp(`^${country}$`, "i"),
-        visaType: sType,
-      })) ||
-      (await VisaCost.findOne({
-        country: new RegExp(`^${country}$`, "i"),
-      }));
-
-    // Enforce minimum client charge
-    const minRequired = costDoc ? Number(costDoc.clientFee) || Number(costDoc.totalCost) || 0 : 0;
-    if (minRequired > 0 && numTotal < minRequired) {
-      return NextResponse.json(
-        {
-          error: `${country} ভিসার জন্য নির্ধারিত ক্লায়েন্ট চার্জ ৳${minRequired.toLocaleString("en-IN")}। এর চেয়ে কম টাকা নেওয়া যাবে না (সমান বা বেশি নিতে হবে)।`,
-        },
-        { status: 400 }
-      );
-    }
-
-    const costAmount = costDoc ? Number(costDoc.totalCost) || 0 : 0;
-    const profitAmount = costAmount > 0 ? Math.max(0, numTotal - costAmount) : (costDoc?.estimatedProfit || 0);
 
     // Generate sequential tracking ID: VS-001, VS-002, ...
     let nextNum = 1;
@@ -200,16 +127,21 @@ export async function POST(request: Request) {
         nextNum = parseInt(match[1], 10) + 1;
       }
     } else {
+      // Fallback: If no VS-xxx records exist yet, count existing applications
       const count = await VisaApplication.countDocuments();
       nextNum = count + 1;
     }
 
+    // Ensure uniqueness in case of concurrent requests or gaps
     let trackingId = `VS-${String(nextNum).padStart(3, "0")}`;
     while (await VisaApplication.exists({ trackingId })) {
       nextNum += 1;
       trackingId = `VS-${String(nextNum).padStart(3, "0")}`;
     }
 
+    const numTotal = Number(totalAmount ?? feeAmount) || 0;
+    const numPaid = Number(paidAmount) || 0;
+    const computedDue = Math.max(0, numTotal - numPaid);
     const computedFeeStatus =
       feeStatus ||
       (numTotal > 0 && numPaid >= numTotal
@@ -226,14 +158,12 @@ export async function POST(request: Request) {
       email: email ? email.trim() : "",
       destinationCountry: country,
       visaType: visaType ? visaType.trim() : "",
-      serviceType: sType,
+      serviceType: serviceType || "tourist_visa",
       status: status || "submitted",
       feeAmount: numTotal,
       totalAmount: numTotal,
       paidAmount: numPaid,
       dueAmount: computedDue,
-      costAmount,
-      profitAmount,
       feeStatus: computedFeeStatus,
       estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : undefined,
       notes: notes || "",
@@ -242,7 +172,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(
-      { success: true, message: "ভিসা আবেদন সফলভাবে তৈরি হয়েছে।", application: newApp },
+      { success: true, message: "Visa & Passport record created successfully", application: newApp },
       { status: 201 }
     );
   } catch (error: unknown) {
@@ -279,11 +209,6 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Application ID is required" }, { status: 400 });
     }
 
-    const current = await VisaApplication.findById(id);
-    if (!current) {
-      return NextResponse.json({ error: "Application not found" }, { status: 404 });
-    }
-
     const updateFields: Record<string, unknown> = {};
     if (applicantName !== undefined) updateFields.applicantName = applicantName.trim();
     if (passportNumber !== undefined) updateFields.passportNumber = passportNumber.trim().toUpperCase();
@@ -302,50 +227,23 @@ export async function PUT(request: Request) {
       updateFields.updatedByName = authUser.name || "";
     }
 
-    const targetCountry = (destinationCountry || current.destinationCountry || "India").trim();
-    const targetService = serviceType || current.serviceType || "tourist_visa";
-
-    const costDoc =
-      (await VisaCost.findOne({
-        country: new RegExp(`^${targetCountry}$`, "i"),
-        visaType: targetService,
-      })) ||
-      (await VisaCost.findOne({
-        country: new RegExp(`^${targetCountry}$`, "i"),
-      }));
-
-    if (totalAmount !== undefined || paidAmount !== undefined || destinationCountry !== undefined || serviceType !== undefined) {
-      const newTotal = totalAmount !== undefined ? Number(totalAmount) : (current.totalAmount || current.feeAmount || 0);
-      const newPaid = paidAmount !== undefined ? Number(paidAmount) : (current.paidAmount || 0);
-
-      // Enforce minimum client fee
-      const minRequired = costDoc ? Number(costDoc.clientFee) || Number(costDoc.totalCost) || 0 : 0;
-      if (minRequired > 0 && newTotal < minRequired) {
-        return NextResponse.json(
-          {
-            error: `${targetCountry} ভিসার জন্য নির্ধারিত ক্লায়েন্ট চার্জ ৳${minRequired.toLocaleString("en-IN")}। এর চেয়ে কম টাকা নেওয়া যাবে না (সমান বা বেশি নিতে হবে)।`,
-          },
-          { status: 400 }
-        );
-      }
-
-      updateFields.totalAmount = newTotal;
-      updateFields.feeAmount = newTotal;
-      updateFields.paidAmount = newPaid;
-      updateFields.dueAmount = Math.max(0, newTotal - newPaid);
-
-      const costAmount = costDoc ? Number(costDoc.totalCost) || 0 : current.costAmount || 0;
-      const profitAmount = costAmount > 0 ? Math.max(0, newTotal - costAmount) : (current.profitAmount || 0);
-      updateFields.costAmount = costAmount;
-      updateFields.profitAmount = profitAmount;
-
-      if (!feeStatus) {
-        updateFields.feeStatus =
-          newTotal > 0 && newPaid >= newTotal
-            ? "paid"
-            : newPaid > 0
-            ? "partial"
-            : "pending";
+    if (totalAmount !== undefined || paidAmount !== undefined) {
+      const current = await VisaApplication.findById(id);
+      if (current) {
+        const newTotal = totalAmount !== undefined ? Number(totalAmount) : (current.totalAmount || current.feeAmount || 0);
+        const newPaid = paidAmount !== undefined ? Number(paidAmount) : (current.paidAmount || 0);
+        updateFields.totalAmount = newTotal;
+        updateFields.feeAmount = newTotal;
+        updateFields.paidAmount = newPaid;
+        updateFields.dueAmount = Math.max(0, newTotal - newPaid);
+        if (!feeStatus) {
+          updateFields.feeStatus =
+            newTotal > 0 && newPaid >= newTotal
+              ? "paid"
+              : newPaid > 0
+              ? "partial"
+              : "pending";
+        }
       }
     }
 

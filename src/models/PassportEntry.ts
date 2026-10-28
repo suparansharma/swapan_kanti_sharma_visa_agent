@@ -11,8 +11,6 @@ export interface IPassportEntry extends Document {
   totalAmount: number; // কত টাকা নিবে তার কাছে
   paidAmount: number; // সে কত টাকা দিছে
   dueAmount: number; // বকেয়া টাকা
-  costAmount?: number; // পাসপোর্ট তৈরির মোট খরচ (PassportCost থেকে)
-  profitAmount?: number; // এজেন্সির লাভ (totalAmount - costAmount)
   onlineTrackId?: string; // Online Track ID (e.g. OID / Application Tracking ID)
   status:
     | "submitted"
@@ -83,15 +81,6 @@ const PassportEntrySchema = new Schema<IPassportEntry>(
       type: Number,
       default: 0,
     },
-    costAmount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    profitAmount: {
-      type: Number,
-      default: 0,
-    },
     onlineTrackId: {
       type: String,
       trim: true,
@@ -139,25 +128,17 @@ const PassportEntrySchema = new Schema<IPassportEntry>(
   }
 );
 
-// Pre-save hook to ensure dueAmount and profitAmount are correctly calculated
+// Pre-save hook to ensure dueAmount is correctly calculated
 PassportEntrySchema.pre("save", function () {
   this.dueAmount = Math.max(0, (this.totalAmount || 0) - (this.paidAmount || 0));
-  if (this.costAmount !== undefined && this.costAmount > 0) {
-    this.profitAmount = Math.max(0, (this.totalAmount || 0) - (this.costAmount || 0));
-  }
 });
 
 PassportEntrySchema.index({ entryNumber: 1 });
 PassportEntrySchema.index({ nid: 1 });
 PassportEntrySchema.index({ mobile: 1 });
 
-if (mongoose.models.PassportEntry) {
-  delete (mongoose.models as Record<string, unknown>).PassportEntry;
-}
-
 const PassportEntry: Model<IPassportEntry> =
   mongoose.models.PassportEntry ||
   mongoose.model<IPassportEntry>("PassportEntry", PassportEntrySchema);
 
 export default PassportEntry;
-

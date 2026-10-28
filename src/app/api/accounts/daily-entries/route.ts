@@ -15,6 +15,8 @@ export async function GET(request: Request) {
     const transactionType = searchParams.get("transactionType") || "all"; // 'all' | 'collection' | 'expense'
     const paymentStatus = searchParams.get("paymentStatus") || "all"; // 'all' | 'paid' | 'partial' | 'due'
     const search = searchParams.get("search") || "";
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "10", 10)));
 
     // 1. Build Date Filters
     const dateQuery: Record<string, unknown> = {};
@@ -354,9 +356,22 @@ export async function GET(request: Request) {
     }
     const allTimeProfit = allTimeIn - allTimeOut;
 
+    const totalEntries = filteredList.length;
+    const totalPages = Math.ceil(totalEntries / limit) || 1;
+    const skip = (page - 1) * limit;
+    const paginatedEntries = filteredList.slice(skip, skip + limit);
+
     return NextResponse.json({
       success: true,
-      entries: filteredList,
+      entries: paginatedEntries,
+      pagination: {
+        page,
+        limit,
+        totalEntries,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
       summary: {
         today: {
           inAmount: todayIn,

@@ -29,6 +29,10 @@ import {
   TrendingUp,
   Receipt,
   HelpCircle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 
 export interface DailyLedgerItem {
@@ -176,22 +180,44 @@ export default function DailyEntryModule() {
     }
   };
 
-  const fetchDailyEntries = async () => {
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalMatching, setTotalMatching] = useState(0);
+
+  const fetchDailyEntries = async (
+    page = currentPage,
+    limit = pageSize,
+    sDate = startDate,
+    eDate = endDate,
+    modFilter = moduleFilter,
+    tFilter = txTypeFilter,
+    pFilter = paymentFilter,
+    query = searchQuery
+  ) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (startDate) params.append("startDate", startDate);
-      if (endDate) params.append("endDate", endDate);
-      if (moduleFilter !== "all") params.append("moduleType", moduleFilter);
-      if (txTypeFilter !== "all") params.append("transactionType", txTypeFilter);
-      if (paymentFilter !== "all") params.append("paymentStatus", paymentFilter);
-      if (searchQuery.trim()) params.append("search", searchQuery.trim());
+      if (sDate) params.append("startDate", sDate);
+      if (eDate) params.append("endDate", eDate);
+      if (modFilter !== "all") params.append("moduleType", modFilter);
+      if (tFilter !== "all") params.append("transactionType", tFilter);
+      if (pFilter !== "all") params.append("paymentStatus", pFilter);
+      if (query.trim()) params.append("search", query.trim());
+      params.append("page", page.toString());
+      params.append("limit", limit.toString());
 
       const res = await fetch(`/api/accounts/daily-entries?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setEntries(data.entries || []);
         if (data.summary) setSummary(data.summary);
+        if (data.pagination) {
+          setCurrentPage(data.pagination.page);
+          setTotalPages(data.pagination.totalPages || 1);
+          setTotalMatching(data.pagination.totalEntries || 0);
+        }
       }
     } catch (err) {
       console.error("Error loading daily account entries:", err);
@@ -201,8 +227,14 @@ export default function DailyEntryModule() {
   };
 
   useEffect(() => {
-    fetchDailyEntries();
-  }, [startDate, endDate, moduleFilter, txTypeFilter, paymentFilter]);
+    fetchDailyEntries(1, pageSize, startDate, endDate, moduleFilter, txTypeFilter, paymentFilter, searchQuery);
+  }, [startDate, endDate, moduleFilter, txTypeFilter, paymentFilter, pageSize]);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages || newPage === currentPage) return;
+    setCurrentPage(newPage);
+    fetchDailyEntries(newPage, pageSize, startDate, endDate, moduleFilter, txTypeFilter, paymentFilter, searchQuery);
+  };
 
   // Search files for autocomplete when adding a transaction
   useEffect(() => {
@@ -437,7 +469,7 @@ export default function DailyEntryModule() {
           </button>
 
           <button
-            onClick={fetchDailyEntries}
+            onClick={() => fetchDailyEntries()}
             className="btn-secondary"
             style={{
               display: "flex",
@@ -1018,10 +1050,31 @@ export default function DailyEntryModule() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                      <RefreshCw size={18} className="animate-spin" />
-                      <span>দৈনিক হিসাব লোড হচ্ছে...</span>
+                  <td colSpan={10} style={{ padding: "60px 20px", textAlign: "center" }}>
+                    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
+                      <div
+                        style={{
+                          width: "42px",
+                          height: "42px",
+                          borderRadius: "50%",
+                          border: "3px solid rgba(16, 185, 129, 0.2)",
+                          borderTopColor: "#10b981",
+                          animation: "spin 0.8s linear infinite",
+                        }}
+                      />
+                      <style jsx>{`
+                        @keyframes spin {
+                          to {
+                            transform: rotate(360deg);
+                          }
+                        }
+                      `}</style>
+                      <div style={{ fontWeight: 600, color: "var(--text-main)", fontSize: "0.95rem" }}>
+                        দৈনিক হিসাব ও লেজার লোড হচ্ছে...
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                        অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -1250,6 +1303,182 @@ export default function DailyEntryModule() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* ACCOUNTS PAGINATION CONTROLS */}
+        <div
+          className="no-print"
+          style={{
+            padding: "14px 20px",
+            borderTop: "1px solid var(--border-subtle)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "12px",
+            background: "rgba(255, 255, 255, 0.015)",
+          }}
+        >
+          {/* Left: Total Records & Page Info */}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+            <span>
+              মোট <strong style={{ color: "var(--text-main)" }}>{totalMatching}</strong> টি লেনদেন
+              {totalMatching > 0 && (
+                <> (পৃষ্ঠা <strong style={{ color: "#10b981" }}>{currentPage}</strong> / <strong>{totalPages}</strong>)</>
+              )}
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ fontSize: "0.8rem" }}>প্রতি পৃষ্ঠায়:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  const newLimit = parseInt(e.target.value, 10);
+                  setPageSize(newLimit);
+                  setCurrentPage(1);
+                  fetchDailyEntries(1, newLimit, startDate, endDate, moduleFilter, txTypeFilter, paymentFilter, searchQuery);
+                }}
+                className="input-field"
+                style={{
+                  height: "32px",
+                  padding: "0 8px",
+                  fontSize: "0.8rem",
+                  width: "auto",
+                  minWidth: "70px",
+                }}
+              >
+                <option value="10">১০</option>
+                <option value="20">২০</option>
+                <option value="50">৫০</option>
+                <option value="100">১০০</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Right: Page Navigation Buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            {/* First Page */}
+            <button
+              onClick={() => handlePageChange(1)}
+              disabled={currentPage <= 1 || loading}
+              className="btn-secondary btn-sm"
+              style={{
+                padding: "6px 10px",
+                height: "34px",
+                opacity: currentPage <= 1 ? 0.4 : 1,
+                cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+              }}
+              title="প্রথম পৃষ্ঠা"
+            >
+              <ChevronsLeft size={16} />
+            </button>
+
+            {/* Prev Page */}
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage <= 1 || loading}
+              className="btn-secondary btn-sm"
+              style={{
+                padding: "6px 10px",
+                height: "34px",
+                opacity: currentPage <= 1 ? 0.4 : 1,
+                cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+              }}
+              title="পূর্ববর্তী পৃষ্ঠা"
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            {/* Page Number Pills */}
+            <div style={{ display: "flex", gap: "4px" }}>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => {
+                  return (
+                    p === 1 ||
+                    p === totalPages ||
+                    Math.abs(p - currentPage) <= 1
+                  );
+                })
+                .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) {
+                    acc.push("...");
+                  }
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, idx) => {
+                  if (item === "...") {
+                    return (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        style={{
+                          padding: "6px 8px",
+                          fontSize: "0.82rem",
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        ...
+                      </span>
+                    );
+                  }
+
+                  const pNum = Number(item);
+                  const isActive = pNum === currentPage;
+                  return (
+                    <button
+                      key={pNum}
+                      onClick={() => handlePageChange(pNum)}
+                      disabled={loading}
+                      style={{
+                        minWidth: "34px",
+                        height: "34px",
+                        borderRadius: "6px",
+                        border: isActive ? "none" : "1px solid var(--border-subtle)",
+                        background: isActive ? "linear-gradient(135deg, #10b981, #059669)" : "rgba(255, 255, 255, 0.04)",
+                        color: isActive ? "#ffffff" : "var(--text-main)",
+                        fontWeight: isActive ? 800 : 500,
+                        fontSize: "0.82rem",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {pNum}
+                    </button>
+                  );
+                })}
+            </div>
+
+            {/* Next Page */}
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= totalPages || loading}
+              className="btn-secondary btn-sm"
+              style={{
+                padding: "6px 10px",
+                height: "34px",
+                opacity: currentPage >= totalPages ? 0.4 : 1,
+                cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+              }}
+              title="পরবর্তী পৃষ্ঠা"
+            >
+              <ChevronRight size={16} />
+            </button>
+
+            {/* Last Page */}
+            <button
+              onClick={() => handlePageChange(totalPages)}
+              disabled={currentPage >= totalPages || loading}
+              className="btn-secondary btn-sm"
+              style={{
+                padding: "6px 10px",
+                height: "34px",
+                opacity: currentPage >= totalPages ? 0.4 : 1,
+                cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+              }}
+              title="শেষ পৃষ্ঠা"
+            >
+              <ChevronsRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 

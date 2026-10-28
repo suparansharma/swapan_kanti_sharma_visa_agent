@@ -10,6 +10,9 @@ export async function GET(request: Request) {
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
     const serviceType = searchParams.get("serviceType") || "all";
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "10", 10)));
+    const skip = (page - 1) * limit;
 
     // Build filter
     const query: Record<string, unknown> = {};
@@ -32,46 +35,126 @@ export async function GET(request: Request) {
       ];
     }
 
-    const applications = await VisaApplication.find(query)
-      .populate("createdBy", "name email")
-      .populate("updatedBy", "name email")
-      .sort({ createdAt: -1 })
-      .lean();
+    // Run query, count, and aggregation in parallel for ultra-fast performance
+    const [applications, totalMatching, statsResult] = await Promise.all([
+      VisaApplication.find(query)
+        .populate("createdBy", "name email")
+        .populate("updatedBy", "name email")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      VisaApplication.countDocuments(query),
+      VisaApplication.aggregate([
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            totalContractAmount: {
+              $sum: { $ifNull: ["$totalAmount", "$feeAmount"] },
+            },
+            totalCollectedAmount: {
+              $sum: { $ifNull: ["$paidAmount", 0] },
+            },
+            totalDueAmount: {
+              $sum: { $ifNull: ["$dueAmount", 0] },
+            },
+            approved: {
+              $sum: {
+                $cond: [
+                  {
+                    $in: [
+                      "$status",
+                      ["approved", "delivery_completed", "dr_ayush_done"],
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            ready: {
+              $sum: {
+                $cond: [
+                  {
+                    $in: [
+                      "$status",
+                      ["ready_for_delivery", "ready_for_pickup", "delivered"],
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            processing: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      {
+                        $not: {
+                          $in: [
+                            "$status",
+                            ["approved", "delivery_completed", "dr_ayush_done"],
+                          ],
+                        },
+                      },
+                      {
+                        $not: {
+                          $in: [
+                            "$status",
+                            [
+                              "ready_for_delivery",
+                              "ready_for_pickup",
+                              "delivered",
+                            ],
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ]),
+    ]);
 
-    // Calculate summary statistics for the dashboard
-    const allVisas = await VisaApplication.find().lean();
-    let totalContractAmount = 0;
-    let totalCollectedAmount = 0;
-    let totalDueAmount = 0;
-    let approvedCount = 0;
-    let processingCount = 0;
-    let readyCount = 0;
+    const statsData = statsResult[0] || {
+      total: 0,
+      totalContractAmount: 0,
+      totalCollectedAmount: 0,
+      totalDueAmount: 0,
+      approved: 0,
+      processing: 0,
+      ready: 0,
+    };
 
-    for (const v of allVisas) {
-      const total = Number(v.totalAmount ?? v.feeAmount) || 0;
-      const paid = Number(v.paidAmount ?? (v.feeStatus === "paid" ? total : 0)) || 0;
-      const due = Number(v.dueAmount ?? Math.max(0, total - paid)) || 0;
-
-      totalContractAmount += total;
-      totalCollectedAmount += paid;
-      totalDueAmount += due;
-
-      if (v.status === "approved" || v.status === "delivery_completed" || v.status === "dr_ayush_done") approvedCount++;
-      else if (v.status === "ready_for_delivery" || v.status === "ready_for_pickup" || v.status === "delivered") readyCount++;
-      else processingCount++;
-    }
+    const totalPages = Math.ceil(totalMatching / limit) || 1;
 
     return NextResponse.json({
       success: true,
       applications,
+      pagination: {
+        page,
+        limit,
+        totalEntries: totalMatching,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
       stats: {
-        total: allVisas.length,
-        totalContractAmount,
-        totalCollectedAmount,
-        totalDueAmount,
-        approved: approvedCount,
-        processing: processingCount,
-        ready: readyCount,
+        total: statsData.total || 0,
+        totalContractAmount: statsData.totalContractAmount || 0,
+        totalCollectedAmount: statsData.totalCollectedAmount || 0,
+        totalDueAmount: statsData.totalDueAmount || 0,
+        approved: statsData.approved || 0,
+        processing: statsData.processing || 0,
+        ready: statsData.ready || 0,
       },
     });
   } catch (error: unknown) {

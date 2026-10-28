@@ -22,6 +22,10 @@ import {
   MapPin,
   X,
   FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 
 interface DepartmentItem {
@@ -160,20 +164,39 @@ export default function HRMModule({ initialSection = "employees" }: HRMModulePro
     }
   };
 
+  // Employees pagination state
+  const [empCurrentPage, setEmpCurrentPage] = useState(1);
+  const [empPageSize, setEmpPageSize] = useState(10);
+  const [empTotalPages, setEmpTotalPages] = useState(1);
+  const [empTotalMatching, setEmpTotalMatching] = useState(0);
+
   // Fetch Employees
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (
+    page = empCurrentPage,
+    limit = empPageSize,
+    search = searchEmployee,
+    dept = filterDepartment,
+    status = filterStatus
+  ) => {
     try {
       setLoadingEmployees(true);
       const params = new URLSearchParams();
-      if (searchEmployee.trim()) params.append("search", searchEmployee.trim());
-      if (filterDepartment !== "all") params.append("department", filterDepartment);
-      if (filterStatus !== "all") params.append("status", filterStatus);
+      if (search.trim()) params.append("search", search.trim());
+      if (dept !== "all") params.append("department", dept);
+      if (status !== "all") params.append("status", status);
+      params.append("page", page.toString());
+      params.append("limit", limit.toString());
 
       const res = await fetch(`/api/employees?${params.toString()}`);
       const data = await res.json();
       if (data.employees) {
         setEmployees(data.employees);
         if (data.stats) setEmpStats(data.stats);
+        if (data.pagination) {
+          setEmpCurrentPage(data.pagination.page);
+          setEmpTotalPages(data.pagination.totalPages || 1);
+          setEmpTotalMatching(data.pagination.totalEntries || 0);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -186,8 +209,14 @@ export default function HRMModule({ initialSection = "employees" }: HRMModulePro
   useEffect(() => {
     fetchDepartments();
     fetchDesignations();
-    fetchEmployees();
-  }, []);
+    fetchEmployees(1, empPageSize, searchEmployee, filterDepartment, filterStatus);
+  }, [filterDepartment, filterStatus, empPageSize]);
+
+  const handleEmpPageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > empTotalPages || newPage === empCurrentPage) return;
+    setEmpCurrentPage(newPage);
+    fetchEmployees(newPage, empPageSize, searchEmployee, filterDepartment, filterStatus);
+  };
 
   // Filtered designations based on chosen department in modal
   const availableDesignations = dept
@@ -768,8 +797,32 @@ export default function HRMModule({ initialSection = "employees" }: HRMModulePro
                 <tbody>
                   {loadingEmployees ? (
                     <tr>
-                      <td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
-                        কর্মী তথ্য লোড হচ্ছে...
+                      <td colSpan={8} style={{ padding: "60px 20px", textAlign: "center" }}>
+                        <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
+                          <div
+                            style={{
+                              width: "42px",
+                              height: "42px",
+                              borderRadius: "50%",
+                              border: "3px solid rgba(129, 140, 248, 0.2)",
+                              borderTopColor: "#818cf8",
+                              animation: "spin 0.8s linear infinite",
+                            }}
+                          />
+                          <style jsx>{`
+                            @keyframes spin {
+                              to {
+                                transform: rotate(360deg);
+                              }
+                            }
+                          `}</style>
+                          <div style={{ fontWeight: 600, color: "var(--text-main)", fontSize: "0.95rem" }}>
+                            কর্মী তালিকা লোড হচ্ছে...
+                          </div>
+                          <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                            অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   ) : employees.length === 0 ? (
@@ -869,6 +922,181 @@ export default function HRMModule({ initialSection = "employees" }: HRMModulePro
                 </tbody>
               </table>
             </div>
+
+            {/* EMPLOYEE PAGINATION CONTROLS */}
+            <div
+              style={{
+                padding: "14px 20px",
+                borderTop: "1px solid var(--border-subtle)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: "12px",
+                background: "rgba(255, 255, 255, 0.015)",
+              }}
+            >
+              {/* Left: Total Records & Page Info */}
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                <span>
+                  মোট <strong style={{ color: "var(--text-main)" }}>{empTotalMatching}</strong> জন কর্মী
+                  {empTotalMatching > 0 && (
+                    <> (পৃষ্ঠা <strong style={{ color: "#818cf8" }}>{empCurrentPage}</strong> / <strong>{empTotalPages}</strong>)</>
+                  )}
+                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "0.8rem" }}>প্রতি পৃষ্ঠায়:</span>
+                  <select
+                    value={empPageSize}
+                    onChange={(e) => {
+                      const newLimit = parseInt(e.target.value, 10);
+                      setEmpPageSize(newLimit);
+                      setEmpCurrentPage(1);
+                      fetchEmployees(1, newLimit, searchEmployee, filterDepartment, filterStatus);
+                    }}
+                    className="input-field"
+                    style={{
+                      height: "32px",
+                      padding: "0 8px",
+                      fontSize: "0.8rem",
+                      width: "auto",
+                      minWidth: "70px",
+                    }}
+                  >
+                    <option value="10">১০</option>
+                    <option value="20">২০</option>
+                    <option value="50">৫০</option>
+                    <option value="100">১০০</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Right: Page Navigation Buttons */}
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                {/* First Page */}
+                <button
+                  onClick={() => handleEmpPageChange(1)}
+                  disabled={empCurrentPage <= 1 || loadingEmployees}
+                  className="btn-secondary btn-sm"
+                  style={{
+                    padding: "6px 10px",
+                    height: "34px",
+                    opacity: empCurrentPage <= 1 ? 0.4 : 1,
+                    cursor: empCurrentPage <= 1 ? "not-allowed" : "pointer",
+                  }}
+                  title="প্রথম পৃষ্ঠা"
+                >
+                  <ChevronsLeft size={16} />
+                </button>
+
+                {/* Prev Page */}
+                <button
+                  onClick={() => handleEmpPageChange(empCurrentPage - 1)}
+                  disabled={empCurrentPage <= 1 || loadingEmployees}
+                  className="btn-secondary btn-sm"
+                  style={{
+                    padding: "6px 10px",
+                    height: "34px",
+                    opacity: empCurrentPage <= 1 ? 0.4 : 1,
+                    cursor: empCurrentPage <= 1 ? "not-allowed" : "pointer",
+                  }}
+                  title="পূর্ববর্তী পৃষ্ঠা"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                {/* Page Number Pills */}
+                <div style={{ display: "flex", gap: "4px" }}>
+                  {Array.from({ length: empTotalPages }, (_, i) => i + 1)
+                    .filter((p) => {
+                      return (
+                        p === 1 ||
+                        p === empTotalPages ||
+                        Math.abs(p - empCurrentPage) <= 1
+                      );
+                    })
+                    .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                      if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) {
+                        acc.push("...");
+                      }
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((item, idx) => {
+                      if (item === "...") {
+                        return (
+                          <span
+                            key={`ellipsis-${idx}`}
+                            style={{
+                              padding: "6px 8px",
+                              fontSize: "0.82rem",
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            ...
+                          </span>
+                        );
+                      }
+
+                      const pNum = Number(item);
+                      const isActive = pNum === empCurrentPage;
+                      return (
+                        <button
+                          key={pNum}
+                          onClick={() => handleEmpPageChange(pNum)}
+                          disabled={loadingEmployees}
+                          style={{
+                            minWidth: "34px",
+                            height: "34px",
+                            borderRadius: "6px",
+                            border: isActive ? "none" : "1px solid var(--border-subtle)",
+                            background: isActive ? "var(--primary-gradient)" : "rgba(255, 255, 255, 0.04)",
+                            color: isActive ? "#ffffff" : "var(--text-main)",
+                            fontWeight: isActive ? 800 : 500,
+                            fontSize: "0.82rem",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          {pNum}
+                        </button>
+                      );
+                    })}
+                </div>
+
+                {/* Next Page */}
+                <button
+                  onClick={() => handleEmpPageChange(empCurrentPage + 1)}
+                  disabled={empCurrentPage >= empTotalPages || loadingEmployees}
+                  className="btn-secondary btn-sm"
+                  style={{
+                    padding: "6px 10px",
+                    height: "34px",
+                    opacity: empCurrentPage >= empTotalPages ? 0.4 : 1,
+                    cursor: empCurrentPage >= empTotalPages ? "not-allowed" : "pointer",
+                  }}
+                  title="পরবর্তী পৃষ্ঠা"
+                >
+                  <ChevronRight size={16} />
+                </button>
+
+                {/* Last Page */}
+                <button
+                  onClick={() => handleEmpPageChange(empTotalPages)}
+                  disabled={empCurrentPage >= empTotalPages || loadingEmployees}
+                  className="btn-secondary btn-sm"
+                  style={{
+                    padding: "6px 10px",
+                    height: "34px",
+                    opacity: empCurrentPage >= empTotalPages ? 0.4 : 1,
+                    cursor: empCurrentPage >= empTotalPages ? "not-allowed" : "pointer",
+                  }}
+                  title="শেষ পৃষ্ঠা"
+                >
+                  <ChevronsRight size={16} />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -904,8 +1132,20 @@ export default function HRMModule({ initialSection = "employees" }: HRMModulePro
               <tbody>
                 {loadingDepts ? (
                   <tr>
-                    <td colSpan={5} style={{ padding: "30px", textAlign: "center", color: "var(--text-muted)" }}>
-                      ডিপার্টমেন্ট লোড হচ্ছে...
+                    <td colSpan={5} style={{ padding: "40px 20px", textAlign: "center" }}>
+                      <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                        <div
+                          style={{
+                            width: "36px",
+                            height: "36px",
+                            borderRadius: "50%",
+                            border: "3px solid rgba(168, 85, 247, 0.2)",
+                            borderTopColor: "#a855f7",
+                            animation: "spin 0.8s linear infinite",
+                          }}
+                        />
+                        <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>ডিপার্টমেন্ট লোড হচ্ছে...</span>
+                      </div>
                     </td>
                   </tr>
                 ) : departments.length === 0 ? (
@@ -990,8 +1230,20 @@ export default function HRMModule({ initialSection = "employees" }: HRMModulePro
               <tbody>
                 {loadingDesigs ? (
                   <tr>
-                    <td colSpan={5} style={{ padding: "30px", textAlign: "center", color: "var(--text-muted)" }}>
-                      পদবী লোড হচ্ছে...
+                    <td colSpan={5} style={{ padding: "40px 20px", textAlign: "center" }}>
+                      <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                        <div
+                          style={{
+                            width: "36px",
+                            height: "36px",
+                            borderRadius: "50%",
+                            border: "3px solid rgba(56, 189, 248, 0.2)",
+                            borderTopColor: "#38bdf8",
+                            animation: "spin 0.8s linear infinite",
+                          }}
+                        />
+                        <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>পদবী লোড হচ্ছে...</span>
+                      </div>
                     </td>
                   </tr>
                 ) : designations.length === 0 ? (

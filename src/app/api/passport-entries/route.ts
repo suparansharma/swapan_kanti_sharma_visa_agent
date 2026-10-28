@@ -9,6 +9,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "10", 10)));
+    const skip = (page - 1) * limit;
 
     const query: Record<string, unknown> = {};
 
@@ -24,45 +27,84 @@ export async function GET(request: Request) {
         { nid: regex },
         { entryNumber: regex },
         { email: regex },
+        { onlineTrackId: regex },
       ];
     }
 
-    const entries = await PassportEntry.find(query)
-      .populate("createdBy", "name email")
-      .populate("updatedBy", "name email")
-      .sort({ createdAt: -1 })
-      .lean();
+    // Run query, count, and aggregation in parallel for ultra-fast response
+    const [entries, totalMatching, statsResult] = await Promise.all([
+      PassportEntry.find(query)
+        .populate("createdBy", "name email")
+        .populate("updatedBy", "name email")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      PassportEntry.countDocuments(query),
+      PassportEntry.aggregate([
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            totalContractAmount: { $sum: "$totalAmount" },
+            totalCollectedAmount: { $sum: "$paidAmount" },
+            totalDueAmount: { $sum: "$dueAmount" },
+            readyCount: {
+              $sum: { $cond: [{ $eq: ["$status", "ready_for_pickup"] }, 1, 0] },
+            },
+            deliveredCount: {
+              $sum: { $cond: [{ $eq: ["$status", "delivered"] }, 1, 0] },
+            },
+            processingCount: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: ["$status", "ready_for_pickup"] },
+                      { $ne: ["$status", "delivered"] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ]),
+    ]);
 
-    // Summary statistics
-    const allEntries = await PassportEntry.find().lean();
-    let totalContractAmount = 0;
-    let totalCollectedAmount = 0;
-    let totalDueAmount = 0;
-    let readyCount = 0;
-    let deliveredCount = 0;
-    let processingCount = 0;
+    const statsData = statsResult[0] || {
+      total: 0,
+      totalContractAmount: 0,
+      totalCollectedAmount: 0,
+      totalDueAmount: 0,
+      readyCount: 0,
+      deliveredCount: 0,
+      processingCount: 0,
+    };
 
-    for (const e of allEntries) {
-      totalContractAmount += Number(e.totalAmount) || 0;
-      totalCollectedAmount += Number(e.paidAmount) || 0;
-      totalDueAmount += Number(e.dueAmount) || 0;
-
-      if (e.status === "ready_for_pickup") readyCount++;
-      else if (e.status === "delivered") deliveredCount++;
-      else processingCount++;
-    }
+    const totalPages = Math.ceil(totalMatching / limit) || 1;
 
     return NextResponse.json({
       success: true,
       entries,
+      pagination: {
+        page,
+        limit,
+        totalEntries: totalMatching,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
       stats: {
-        total: allEntries.length,
-        totalContractAmount,
-        totalCollectedAmount,
-        totalDueAmount,
-        readyCount,
-        deliveredCount,
-        processingCount,
+        total: statsData.total || 0,
+        totalContractAmount: statsData.totalContractAmount || 0,
+        totalCollectedAmount: statsData.totalCollectedAmount || 0,
+        totalDueAmount: statsData.totalDueAmount || 0,
+        readyCount: statsData.readyCount || 0,
+        deliveredCount: statsData.deliveredCount || 0,
+        processingCount: statsData.processingCount || 0,
       },
     });
   } catch (error: unknown) {

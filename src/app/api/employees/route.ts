@@ -31,16 +31,35 @@ export async function GET(request: Request) {
       ];
     }
 
-    const employees = await Employee.find(query).sort({ createdAt: -1 }).lean();
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "10", 10)));
+    const skip = (page - 1) * limit;
 
-    // Stats
-    const total = await Employee.countDocuments();
-    const active = await Employee.countDocuments({ status: "active" });
-    const inactive = await Employee.countDocuments({ status: "inactive" });
-    const onLeave = await Employee.countDocuments({ status: "on_leave" });
+    const [employees, totalMatching, total, active, inactive, onLeave] = await Promise.all([
+      Employee.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Employee.countDocuments(query),
+      Employee.countDocuments(),
+      Employee.countDocuments({ status: "active" }),
+      Employee.countDocuments({ status: "inactive" }),
+      Employee.countDocuments({ status: "on_leave" }),
+    ]);
+
+    const totalPages = Math.ceil(totalMatching / limit) || 1;
 
     return NextResponse.json({
       employees,
+      pagination: {
+        page,
+        limit,
+        totalEntries: totalMatching,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
       stats: { total, active, inactive, onLeave },
     });
   } catch (error: unknown) {

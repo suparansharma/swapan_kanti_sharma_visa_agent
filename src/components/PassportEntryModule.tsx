@@ -21,6 +21,11 @@ import {
   ShieldCheck,
   Check,
   FileCheck,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Loader2,
 } from "lucide-react";
 
 export interface PassportEntryItem {
@@ -77,6 +82,12 @@ export default function PassportEntryModule() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalMatching, setTotalMatching] = useState(0);
+
   // Modal: Add New Passport Entry Form
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState("");
@@ -129,19 +140,26 @@ export default function PassportEntryModule() {
   const numPaid = Number(paidAmount) || 0;
   const liveDue = Math.max(0, numTotal - numPaid);
 
-  // Fetch entries
-  const fetchEntries = async () => {
+  // Fetch entries with pagination
+  const fetchEntries = async (page = currentPage, limit = pageSize, search = searchQuery, statusFilter = filterStatus) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (searchQuery.trim()) params.append("search", searchQuery.trim());
-      if (filterStatus !== "all") params.append("status", filterStatus);
+      if (search.trim()) params.append("search", search.trim());
+      if (statusFilter !== "all") params.append("status", statusFilter);
+      params.append("page", page.toString());
+      params.append("limit", limit.toString());
 
       const res = await fetch(`/api/passport-entries?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setEntries(data.entries || []);
         if (data.stats) setStats(data.stats);
+        if (data.pagination) {
+          setCurrentPage(data.pagination.page);
+          setTotalPages(data.pagination.totalPages || 1);
+          setTotalMatching(data.pagination.totalEntries || 0);
+        }
       }
     } catch (err) {
       console.error("Error fetching passport entries:", err);
@@ -151,12 +169,18 @@ export default function PassportEntryModule() {
   };
 
   useEffect(() => {
-    fetchEntries();
-  }, [filterStatus]);
+    fetchEntries(1, pageSize, searchQuery, filterStatus);
+  }, [filterStatus, pageSize]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchEntries();
+    fetchEntries(1, pageSize, searchQuery, filterStatus);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages || newPage === currentPage) return;
+    setCurrentPage(newPage);
+    fetchEntries(newPage, pageSize, searchQuery, filterStatus);
   };
 
   // Submit Add Entry Form
@@ -600,6 +624,16 @@ export default function PassportEntryModule() {
             <option value="ready_for_pickup">পাসপোর্ট রেডি</option>
             <option value="delivered">ডেলিভারি সম্পন্ন</option>
           </select>
+          <button
+            onClick={() => fetchEntries(currentPage, pageSize, searchQuery, filterStatus)}
+            disabled={loading}
+            className="btn-secondary btn-sm"
+            style={{ height: "42px", padding: "0 14px", display: "inline-flex", alignItems: "center", gap: "6px" }}
+            title="রিফ্রেশ করুন"
+          >
+            <RefreshCw size={14} className={loading ? "spin" : ""} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+            <span>রিফ্রেশ</span>
+          </button>
         </div>
       </div>
 
@@ -625,8 +659,32 @@ export default function PassportEntryModule() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
-                    পাসপোর্ট এন্ট্রি লোড হচ্ছে...
+                  <td colSpan={11} style={{ padding: "60px 20px", textAlign: "center" }}>
+                    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
+                      <div
+                        style={{
+                          width: "42px",
+                          height: "42px",
+                          borderRadius: "50%",
+                          border: "3px solid rgba(56, 189, 248, 0.2)",
+                          borderTopColor: "#38bdf8",
+                          animation: "spin 0.8s linear infinite",
+                        }}
+                      />
+                      <style jsx>{`
+                        @keyframes spin {
+                          to {
+                            transform: rotate(360deg);
+                          }
+                        }
+                      `}</style>
+                      <div style={{ fontWeight: 600, color: "var(--text-main)", fontSize: "0.95rem" }}>
+                        পাসপোর্ট এন্ট্রি লোড হচ্ছে...
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                        অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : entries.length === 0 ? (
@@ -915,6 +973,182 @@ export default function PassportEntryModule() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* PAGINATION CONTROLS */}
+        <div
+          style={{
+            padding: "14px 20px",
+            borderTop: "1px solid var(--border-subtle)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "12px",
+            background: "rgba(255, 255, 255, 0.015)",
+          }}
+        >
+          {/* Left: Total records & Page info */}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+            <span>
+              মোট <strong style={{ color: "var(--text-main)" }}>{totalMatching}</strong> টি এন্ট্রি
+              {totalMatching > 0 && (
+                <> (পৃষ্ঠা <strong style={{ color: "#38bdf8" }}>{currentPage}</strong> / <strong>{totalPages}</strong>)</>
+              )}
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ fontSize: "0.8rem" }}>প্রতি পৃষ্ঠায়:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  const newLimit = parseInt(e.target.value, 10);
+                  setPageSize(newLimit);
+                  setCurrentPage(1);
+                  fetchEntries(1, newLimit, searchQuery, filterStatus);
+                }}
+                className="input-field"
+                style={{
+                  height: "32px",
+                  padding: "0 8px",
+                  fontSize: "0.8rem",
+                  width: "auto",
+                  minWidth: "70px",
+                }}
+              >
+                <option value="10">১০</option>
+                <option value="20">২০</option>
+                <option value="50">৫০</option>
+                <option value="100">১০০</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Right: Page Navigation Buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            {/* First Page */}
+            <button
+              onClick={() => handlePageChange(1)}
+              disabled={currentPage <= 1 || loading}
+              className="btn-secondary btn-sm"
+              style={{
+                padding: "6px 10px",
+                height: "34px",
+                opacity: currentPage <= 1 ? 0.4 : 1,
+                cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+              }}
+              title="প্রথম পৃষ্ঠা"
+            >
+              <ChevronsLeft size={16} />
+            </button>
+
+            {/* Prev Page */}
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage <= 1 || loading}
+              className="btn-secondary btn-sm"
+              style={{
+                padding: "6px 10px",
+                height: "34px",
+                opacity: currentPage <= 1 ? 0.4 : 1,
+                cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+              }}
+              title="পূর্ববর্তী পৃষ্ঠা"
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            {/* Page Number Pills */}
+            <div style={{ display: "flex", gap: "4px" }}>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => {
+                  // Show current page, edges, and adjacent pages
+                  return (
+                    p === 1 ||
+                    p === totalPages ||
+                    Math.abs(p - currentPage) <= 1
+                  );
+                })
+                .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) {
+                    acc.push("...");
+                  }
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, idx) => {
+                  if (item === "...") {
+                    return (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        style={{
+                          padding: "6px 8px",
+                          fontSize: "0.82rem",
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        ...
+                      </span>
+                    );
+                  }
+
+                  const pNum = Number(item);
+                  const isActive = pNum === currentPage;
+                  return (
+                    <button
+                      key={pNum}
+                      onClick={() => handlePageChange(pNum)}
+                      disabled={loading}
+                      style={{
+                        minWidth: "34px",
+                        height: "34px",
+                        borderRadius: "6px",
+                        border: isActive ? "none" : "1px solid var(--border-subtle)",
+                        background: isActive ? "var(--primary-gradient)" : "rgba(255, 255, 255, 0.04)",
+                        color: isActive ? "#ffffff" : "var(--text-main)",
+                        fontWeight: isActive ? 800 : 500,
+                        fontSize: "0.82rem",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {pNum}
+                    </button>
+                  );
+                })}
+            </div>
+
+            {/* Next Page */}
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= totalPages || loading}
+              className="btn-secondary btn-sm"
+              style={{
+                padding: "6px 10px",
+                height: "34px",
+                opacity: currentPage >= totalPages ? 0.4 : 1,
+                cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+              }}
+              title="পরবর্তী পৃষ্ঠা"
+            >
+              <ChevronRight size={16} />
+            </button>
+
+            {/* Last Page */}
+            <button
+              onClick={() => handlePageChange(totalPages)}
+              disabled={currentPage >= totalPages || loading}
+              className="btn-secondary btn-sm"
+              style={{
+                padding: "6px 10px",
+                height: "34px",
+                opacity: currentPage >= totalPages ? 0.4 : 1,
+                cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+              }}
+              title="শেষ পৃষ্ঠা"
+            >
+              <ChevronsRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 

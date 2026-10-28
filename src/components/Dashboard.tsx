@@ -43,6 +43,9 @@ import {
   FileCheck,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
   BookOpen,
   LayoutDashboard,
   LogOut,
@@ -190,6 +193,12 @@ export default function Dashboard() {
   const [showAddVisaModal, setShowAddVisaModal] = useState(false);
   const [selectedVisa, setSelectedVisa] = useState<VisaApplicationItem | null>(null);
 
+  // Visa pagination state
+  const [visaCurrentPage, setVisaCurrentPage] = useState(1);
+  const [visaPageSize, setVisaPageSize] = useState(10);
+  const [visaTotalPages, setVisaTotalPages] = useState(1);
+  const [visaTotalMatching, setVisaTotalMatching] = useState(0);
+
   // New Visa form state
   const [applicantName, setApplicantName] = useState("");
   const [passportNumber, setPassportNumber] = useState("");
@@ -232,18 +241,30 @@ export default function Dashboard() {
   const liveVisaDue = Math.max(0, numVisaTotal - numVisaPaid);
 
   // Fetch Visa Applications
-  const fetchVisaApplications = async () => {
+  const fetchVisaApplications = async (
+    page = visaCurrentPage,
+    limit = visaPageSize,
+    search = searchVisa,
+    statusFilter = filterVisaStatus
+  ) => {
     try {
       setLoadingVisa(true);
       const params = new URLSearchParams();
-      if (searchVisa.trim()) params.append("search", searchVisa.trim());
-      if (filterVisaStatus !== "all") params.append("status", filterVisaStatus);
+      if (search.trim()) params.append("search", search.trim());
+      if (statusFilter !== "all") params.append("status", statusFilter);
+      params.append("page", page.toString());
+      params.append("limit", limit.toString());
 
       const res = await fetch(`/api/visa-applications?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setApplications(data.applications || []);
         if (data.stats) setVisaStats(data.stats);
+        if (data.pagination) {
+          setVisaCurrentPage(data.pagination.page);
+          setVisaTotalPages(data.pagination.totalPages || 1);
+          setVisaTotalMatching(data.pagination.totalEntries || 0);
+        }
       }
     } catch (err) {
       console.error("Error fetching visa applications:", err);
@@ -253,8 +274,16 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchVisaApplications();
-  }, [filterVisaStatus]);
+    if (activeTab === "visa_applications") {
+      fetchVisaApplications(1, visaPageSize, searchVisa, filterVisaStatus);
+    }
+  }, [filterVisaStatus, visaPageSize, activeTab]);
+
+  const handleVisaPageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > visaTotalPages || newPage === visaCurrentPage) return;
+    setVisaCurrentPage(newPage);
+    fetchVisaApplications(newPage, visaPageSize, searchVisa, filterVisaStatus);
+  };
 
   // Create Visa Application
   const handleCreateVisa = async (e: React.FormEvent) => {
@@ -637,7 +666,7 @@ export default function Dashboard() {
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <Briefcase size={15} />
-                      <span>ভিসা আবেদন তালিকা</span>
+                      <span>Visa Entry</span>
                     </div>
                     {activeTab === "visa_applications" && (
                       <span
@@ -944,7 +973,7 @@ export default function Dashboard() {
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <Users size={18} style={{ color: "#c084fc" }} />
-                  <span>এইচআরএম মডিউল (HRM)</span>
+                  <span>HRM</span>
                 </div>
                 {hrmOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               </button>
@@ -989,7 +1018,7 @@ export default function Dashboard() {
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <UserIcon size={15} />
-                      <span>Employee (কর্মী তালিকা ও এন্ট্রি)</span>
+                      <span>Employee Entry</span>
                     </div>
                     {(activeTab === "hrm_employees" || activeTab === "hrm") && (
                       <span
@@ -1569,7 +1598,40 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {applications.map((app) => {
+                    {loadingVisa ? (
+                      <tr>
+                        <td colSpan={10} style={{ padding: "60px 20px", textAlign: "center" }}>
+                          <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
+                            <div
+                              style={{
+                                width: "42px",
+                                height: "42px",
+                                borderRadius: "50%",
+                                border: "3px solid rgba(99, 102, 241, 0.2)",
+                                borderTopColor: "var(--primary, #6366f1)",
+                                animation: "spin 0.8s linear infinite",
+                              }}
+                            />
+                            <div style={{ fontWeight: 600, color: "var(--text-main)", fontSize: "0.95rem" }}>
+                              ভিসা আবেদন তালিকা লোড হচ্ছে...
+                            </div>
+                            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                              অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : applications.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} style={{ padding: "50px 20px", textAlign: "center", color: "var(--text-muted)" }}>
+                          <div style={{ marginBottom: "12px", fontSize: "1.05rem" }}>কোনো ভিসা আবেদন পাওয়া যায়নি।</div>
+                          <button onClick={() => setShowAddVisaModal(true)} className="btn-primary btn-sm">
+                            + নতুন ভিসা আবেদন যুক্ত করুন
+                          </button>
+                        </td>
+                      </tr>
+                    ) : (
+                      applications.map((app) => {
                       const total = app.totalAmount ?? app.feeAmount ?? 0;
                       const paid = app.paidAmount ?? (app.feeStatus === "paid" ? total : 0);
                       const due = app.dueAmount ?? Math.max(0, total - paid);
@@ -1718,9 +1780,184 @@ export default function Dashboard() {
                           </td>
                         </tr>
                       );
-                    })}
+                    }))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* VISA PAGINATION CONTROLS */}
+              <div
+                style={{
+                  padding: "14px 20px",
+                  borderTop: "1px solid var(--border-subtle)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: "12px",
+                  background: "rgba(255, 255, 255, 0.015)",
+                }}
+              >
+                {/* Left: Total Records & Page Info */}
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                  <span>
+                    মোট <strong style={{ color: "var(--text-main)" }}>{visaTotalMatching}</strong> টি আবেদন
+                    {visaTotalMatching > 0 && (
+                      <> (পৃষ্ঠা <strong style={{ color: "#818cf8" }}>{visaCurrentPage}</strong> / <strong>{visaTotalPages}</strong>)</>
+                    )}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "0.8rem" }}>প্রতি পৃষ্ঠায়:</span>
+                    <select
+                      value={visaPageSize}
+                      onChange={(e) => {
+                        const newLimit = parseInt(e.target.value, 10);
+                        setVisaPageSize(newLimit);
+                        setVisaCurrentPage(1);
+                        fetchVisaApplications(1, newLimit, searchVisa, filterVisaStatus);
+                      }}
+                      className="input-field"
+                      style={{
+                        height: "32px",
+                        padding: "0 8px",
+                        fontSize: "0.8rem",
+                        width: "auto",
+                        minWidth: "70px",
+                      }}
+                    >
+                      <option value="10">১০</option>
+                      <option value="20">২০</option>
+                      <option value="50">৫০</option>
+                      <option value="100">১০০</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Right: Page Navigation Buttons */}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  {/* First Page */}
+                  <button
+                    onClick={() => handleVisaPageChange(1)}
+                    disabled={visaCurrentPage <= 1 || loadingVisa}
+                    className="btn-secondary btn-sm"
+                    style={{
+                      padding: "6px 10px",
+                      height: "34px",
+                      opacity: visaCurrentPage <= 1 ? 0.4 : 1,
+                      cursor: visaCurrentPage <= 1 ? "not-allowed" : "pointer",
+                    }}
+                    title="প্রথম পৃষ্ঠা"
+                  >
+                    <ChevronsLeft size={16} />
+                  </button>
+
+                  {/* Prev Page */}
+                  <button
+                    onClick={() => handleVisaPageChange(visaCurrentPage - 1)}
+                    disabled={visaCurrentPage <= 1 || loadingVisa}
+                    className="btn-secondary btn-sm"
+                    style={{
+                      padding: "6px 10px",
+                      height: "34px",
+                      opacity: visaCurrentPage <= 1 ? 0.4 : 1,
+                      cursor: visaCurrentPage <= 1 ? "not-allowed" : "pointer",
+                    }}
+                    title="পূর্ববর্তী পৃষ্ঠা"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  {/* Page Number Pills */}
+                  <div style={{ display: "flex", gap: "4px" }}>
+                    {Array.from({ length: visaTotalPages }, (_, i) => i + 1)
+                      .filter((p) => {
+                        return (
+                          p === 1 ||
+                          p === visaTotalPages ||
+                          Math.abs(p - visaCurrentPage) <= 1
+                        );
+                      })
+                      .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                        if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) {
+                          acc.push("...");
+                        }
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((item, idx) => {
+                        if (item === "...") {
+                          return (
+                            <span
+                              key={`ellipsis-${idx}`}
+                              style={{
+                                padding: "6px 8px",
+                                fontSize: "0.82rem",
+                                color: "var(--text-muted)",
+                              }}
+                            >
+                              ...
+                            </span>
+                          );
+                        }
+
+                        const pNum = Number(item);
+                        const isActive = pNum === visaCurrentPage;
+                        return (
+                          <button
+                            key={pNum}
+                            onClick={() => handleVisaPageChange(pNum)}
+                            disabled={loadingVisa}
+                            style={{
+                              minWidth: "34px",
+                              height: "34px",
+                              borderRadius: "6px",
+                              border: isActive ? "none" : "1px solid var(--border-subtle)",
+                              background: isActive ? "var(--primary-gradient)" : "rgba(255, 255, 255, 0.04)",
+                              color: isActive ? "#ffffff" : "var(--text-main)",
+                              fontWeight: isActive ? 800 : 500,
+                              fontSize: "0.82rem",
+                              cursor: "pointer",
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            {pNum}
+                          </button>
+                        );
+                      })}
+                  </div>
+
+                  {/* Next Page */}
+                  <button
+                    onClick={() => handleVisaPageChange(visaCurrentPage + 1)}
+                    disabled={visaCurrentPage >= visaTotalPages || loadingVisa}
+                    className="btn-secondary btn-sm"
+                    style={{
+                      padding: "6px 10px",
+                      height: "34px",
+                      opacity: visaCurrentPage >= visaTotalPages ? 0.4 : 1,
+                      cursor: visaCurrentPage >= visaTotalPages ? "not-allowed" : "pointer",
+                    }}
+                    title="পরবর্তী পৃষ্ঠা"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+
+                  {/* Last Page */}
+                  <button
+                    onClick={() => handleVisaPageChange(visaTotalPages)}
+                    disabled={visaCurrentPage >= visaTotalPages || loadingVisa}
+                    className="btn-secondary btn-sm"
+                    style={{
+                      padding: "6px 10px",
+                      height: "34px",
+                      opacity: visaCurrentPage >= visaTotalPages ? 0.4 : 1,
+                      cursor: visaCurrentPage >= visaTotalPages ? "not-allowed" : "pointer",
+                    }}
+                    title="শেষ পৃষ্ঠা"
+                  >
+                    <ChevronsRight size={16} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

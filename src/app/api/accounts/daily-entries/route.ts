@@ -327,11 +327,32 @@ export async function GET(request: Request) {
     let filteredIn = 0;
     let filteredOut = 0;
     let filteredDue = 0;
+    let filteredProfit = 0;
     for (const item of filteredList) {
       filteredIn += item.inAmount || 0;
       filteredOut += item.outAmount || 0;
       filteredDue += item.dueAmount || 0;
+      filteredProfit += item.profit !== undefined ? item.profit : (item.inAmount || 0) - (item.outAmount || 0);
     }
+
+    // All-time calculation
+    let allTimeIn = 0;
+    let allTimeOut = 0;
+    for (const exp of allExpenses) {
+      allTimeOut += Number(exp.amount) || 0;
+    }
+    for (const p of allPassports) {
+      allTimeIn += Number(p.paidAmount) || 0;
+    }
+    for (const v of allVisas) {
+      allTimeIn += Number(v.paidAmount) || 0;
+    }
+    for (const tx of transactions) {
+      if (tx.type === "collection" && !passportMap[tx.referenceId] && !visaMap[tx.referenceId]) {
+        allTimeIn += tx.amount || 0;
+      }
+    }
+    const allTimeProfit = allTimeIn - allTimeOut;
 
     return NextResponse.json({
       success: true,
@@ -341,6 +362,7 @@ export async function GET(request: Request) {
           inAmount: todayIn,
           outAmount: todayOut,
           netCash: todayIn - todayOut,
+          profit: todayIn - todayOut,
           dueAmount: todayDue,
           totalCount: todayTxs.length + todayPassports.length + todayVisas.length,
           passportCount:
@@ -352,8 +374,15 @@ export async function GET(request: Request) {
           inAmount: filteredIn,
           outAmount: filteredOut,
           netCash: filteredIn - filteredOut,
+          profit: filteredIn - filteredOut,
           dueAmount: filteredDue,
           totalCount: filteredList.length,
+        },
+        allTime: {
+          inAmount: allTimeIn,
+          outAmount: allTimeOut,
+          profit: allTimeProfit,
+          dueAmount: todayDue,
         },
       },
     });

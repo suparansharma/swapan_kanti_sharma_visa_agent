@@ -61,6 +61,7 @@ interface SummaryData {
     inAmount: number;
     outAmount: number;
     netCash: number;
+    profit?: number;
     dueAmount: number;
     totalCount: number;
     passportCount: number;
@@ -70,8 +71,15 @@ interface SummaryData {
     inAmount: number;
     outAmount: number;
     netCash: number;
+    profit?: number;
     dueAmount: number;
     totalCount: number;
+  };
+  allTime?: {
+    inAmount: number;
+    outAmount: number;
+    profit: number;
+    dueAmount: number;
   };
 }
 
@@ -467,7 +475,7 @@ export default function DailyEntryModule() {
         className="print-summary-grid"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
           gap: "16px",
         }}
       >
@@ -589,7 +597,52 @@ export default function DailyEntryModule() {
           </div>
         </div>
 
-        {/* 4. Today's Total Due */}
+        {/* 4. Today's Profit (Net Profit) */}
+        <div
+          className="glass-panel"
+          style={{
+            padding: "20px",
+            borderLeft: "4px solid #0ea5e9",
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", fontWeight: 600 }}>
+              আজকের নিট লাভ (Profit)
+            </div>
+            <div
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "8px",
+                background: "rgba(14, 165, 233, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#38bdf8",
+              }}
+            >
+              <TrendingUp size={20} />
+            </div>
+          </div>
+          <div
+            style={{
+              fontSize: "1.9rem",
+              fontWeight: 900,
+              color: ((summary?.today.profit ?? summary?.today.netCash ?? 0) >= 0) ? "#38bdf8" : "#f87171",
+              marginTop: "10px",
+            }}
+          >
+            {(summary?.today.profit ?? summary?.today.netCash ?? 0) >= 0 ? "+" : ""}
+            ৳ {(summary?.today.profit ?? summary?.today.netCash ?? 0).toLocaleString("en-IN")}
+          </div>
+          <div style={{ fontSize: "0.74rem", color: "#38bdf8", marginTop: "4px", fontWeight: 600 }}>
+            খরচ বাদ দেওয়ার পর আজকের লাভ
+          </div>
+        </div>
+
+        {/* 5. Today's Total Due */}
         <div
           className="glass-panel"
           style={{
@@ -927,6 +980,15 @@ export default function DailyEntryModule() {
               ৳ {(summary?.filtered.netCash || 0).toLocaleString("en-IN")}
             </strong>
           </div>
+          <span style={{ color: "var(--border-subtle)" }}>|</span>
+          <div>
+            নিট লাভ (Profit):{" "}
+            <strong style={{ color: (summary?.filtered.profit ?? summary?.filtered.netCash ?? 0) >= 0 ? "#38bdf8" : "#f87171", fontSize: "0.95rem" }}>
+              {(summary?.filtered.profit ?? summary?.filtered.netCash ?? 0) >= 0 ? "+" : ""}
+              ৳ {(summary?.filtered.profit ?? summary?.filtered.netCash ?? 0).toLocaleString("en-IN")}
+            </strong>
+          </div>
+          <span style={{ color: "var(--border-subtle)" }}>|</span>
           <div>
             অবশিষ্ট মোট বকেয়া: <strong style={{ color: "#fbbf24" }}>৳ {(summary?.filtered.dueAmount || 0).toLocaleString("en-IN")}</strong>
           </div>

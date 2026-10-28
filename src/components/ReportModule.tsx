@@ -204,7 +204,8 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
 
   const getPassportTypeLabel = (val: string) => {
     const found = PASSPORT_TYPE_OPTIONS.find((o) => o.value === val);
-    return found ? found.label : val;
+    const raw = found ? found.label : val;
+    return raw ? raw.replace(/^[০-৯\d]+\.\s*/, "") : "";
   };
 
   const getStatusBadge = (s: string) => {

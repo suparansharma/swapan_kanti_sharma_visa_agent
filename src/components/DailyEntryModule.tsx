@@ -46,6 +46,8 @@ export interface DailyLedgerItem {
   totalAmount?: number;
   inAmount: number;
   outAmount: number;
+  profit?: number;
+  fileExpense?: number;
   dueAmount: number;
   paymentStatus: "paid" | "partial" | "due";
   paymentMethod: string;
@@ -304,7 +306,7 @@ export default function DailyEntryModule() {
           applicantName: formApplicantName || "গ্রাহক",
           phone: formPhone,
           serviceTitle: formServiceTitle,
-          category: formCategory,
+          category: formType === "collection" ? (formCategory || "বকেয়া আদায় / কিস্তি জমা") : formCategory,
           amount: Number(formAmount),
           paymentMethod: formPaymentMethod,
           notes: formNotes,
@@ -941,11 +943,10 @@ export default function DailyEntryModule() {
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>ট্র্যাকিং নম্বর</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>মডিউল</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>গ্রাহকের নাম ও মোবাইল</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>ধরন ও খাত</th>
                 <th style={{ padding: "14px 18px", color: "#34d399", fontWeight: 700 }}>জমা (Cash In)</th>
                 <th style={{ padding: "14px 18px", color: "#f87171", fontWeight: 700 }}>খরচ (Expense)</th>
+                <th style={{ padding: "14px 18px", color: "#38bdf8", fontWeight: 700 }}>নিট লাভ (Profit)</th>
                 <th style={{ padding: "14px 18px", color: "#fbbf24", fontWeight: 700 }}>বকেয়া টাকা</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600, minWidth: "180px" }}>নোট / বিবরণ</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>এন্ট্রি করেছেন</th>
                 <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600, textAlign: "right" }} className="no-print">
                   একশন
@@ -955,7 +956,7 @@ export default function DailyEntryModule() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={10} style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                       <RefreshCw size={18} className="animate-spin" />
                       <span>দৈনিক হিসাব লোড হচ্ছে...</span>
@@ -964,7 +965,7 @@ export default function DailyEntryModule() {
                 </tr>
               ) : entries.length === 0 ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: "50px", textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={10} style={{ padding: "50px", textAlign: "center", color: "var(--text-muted)" }}>
                     <div style={{ maxWidth: "340px", margin: "0 auto" }}>
                       <Wallet size={36} style={{ color: "var(--text-muted)", marginBottom: "12px", opacity: 0.5 }} />
                       <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-secondary)" }}>
@@ -1076,51 +1077,6 @@ export default function DailyEntryModule() {
                         </div>
                       </td>
 
-                      {/* Type & Category */}
-                      <td style={{ padding: "14px 18px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          {isExpense ? (
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px",
-                                fontSize: "0.72rem",
-                                fontWeight: 700,
-                                color: "#f87171",
-                                background: "rgba(244, 63, 94, 0.12)",
-                                padding: "2px 6px",
-                                borderRadius: "4px",
-                              }}
-                            >
-                              <ArrowUpRight size={11} /> খরচ
-                            </span>
-                          ) : (
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px",
-                                fontSize: "0.72rem",
-                                fontWeight: 700,
-                                color: "#34d399",
-                                background: "rgba(16, 185, 129, 0.12)",
-                                padding: "2px 6px",
-                                borderRadius: "4px",
-                              }}
-                            >
-                              <ArrowDownLeft size={11} /> জমা
-                            </span>
-                          )}
-                          <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-main)" }}>
-                            {item.category}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                          পেমেন্ট মাধ্যম: {item.paymentMethod.toUpperCase()}
-                        </div>
-                      </td>
-
                       {/* Cash In */}
                       <td style={{ padding: "14px 18px" }}>
                         {item.inAmount > 0 ? (
@@ -1143,6 +1099,34 @@ export default function DailyEntryModule() {
                         )}
                       </td>
 
+                      {/* Profit (নিট লাভ) */}
+                      <td style={{ padding: "14px 18px" }}>
+                        {(() => {
+                          const profitVal = item.profit !== undefined ? item.profit : item.inAmount - item.outAmount;
+                          const isPositive = profitVal > 0;
+                          const isNegative = profitVal < 0;
+                          return (
+                            <div>
+                              <div
+                                style={{
+                                  fontWeight: 800,
+                                  color: isPositive ? "#38bdf8" : isNegative ? "#f87171" : "var(--text-muted)",
+                                  fontSize: "0.95rem",
+                                }}
+                              >
+                                {isPositive ? "+" : ""}
+                                ৳ {profitVal.toLocaleString("en-IN")}
+                              </div>
+                              {item.fileExpense !== undefined && item.fileExpense > 0 && (
+                                <div style={{ fontSize: "0.71rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                  খরচ: -৳ {item.fileExpense.toLocaleString("en-IN")}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+
                       {/* Due Amount */}
                       <td style={{ padding: "14px 18px" }}>
                         <div
@@ -1154,30 +1138,6 @@ export default function DailyEntryModule() {
                         >
                           ৳ {item.dueAmount.toLocaleString("en-IN")}
                         </div>
-                      </td>
-
-                      {/* NOTE FIELD (User strictly requested!) */}
-                      <td style={{ padding: "14px 18px", maxWidth: "260px" }}>
-                        {item.notes ? (
-                          <div
-                            style={{
-                              fontSize: "0.8rem",
-                              color: "var(--text-main)",
-                              background: "rgba(255, 255, 255, 0.04)",
-                              padding: "6px 10px",
-                              borderRadius: "6px",
-                              borderLeft: isExpense ? "2px solid #f43f5e" : "2px solid #10b981",
-                              lineHeight: 1.4,
-                              wordBreak: "break-word",
-                            }}
-                          >
-                            {item.notes}
-                          </div>
-                        ) : (
-                          <span style={{ color: "var(--text-muted)", fontSize: "0.76rem", fontStyle: "italic" }}>
-                            কোনো মন্তব্য নেই
-                          </span>
-                        )}
                       </td>
 
                       {/* Created By */}
@@ -1517,25 +1477,10 @@ export default function DailyEntryModule() {
               </div>
 
               {/* Category (খাত) & Amount */}
-              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "12px" }}>
-                <div>
-                  <label className="label-text">
-                    {formType === "collection" ? "জমার খাত / ধরন *" : "খরচের খাত / বিষয় *"}
-                  </label>
-                  {formType === "collection" ? (
-                    <select
-                      value={formCategory}
-                      onChange={(e) => setFormCategory(e.target.value)}
-                      className="input-field"
-                      required
-                    >
-                      <option value="বকেয়া আদায় / কিস্তি জমা">বকেয়া আদায় / কিস্তি জমা</option>
-                      <option value="অগ্রিম জমা (Advance Payment)">অগ্রিম জমা (Advance)</option>
-                      <option value="ফাইল প্রসেসিং চার্জ জমা">ফাইল প্রসেসিং চার্জ জমা</option>
-                      <option value="ডেলিভারি কালেকশন">ডেলিভারি কালেকশন</option>
-                      <option value="অন্যান্য জমা">অন্যান্য জমা</option>
-                    </select>
-                  ) : (
+              {formType === "expense" ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label className="label-text">খরচের খাত / বিষয় *</label>
                     <select
                       value={formCategory}
                       onChange={(e) => setFormCategory(e.target.value)}
@@ -1550,9 +1495,23 @@ export default function DailyEntryModule() {
                       <option value="যাতায়াত ও কুরিয়ার খরচ">যাতায়াত ও কুরিয়ার খরচ</option>
                       <option value="বিবিধ অফিস ও ফাইল খরচ">বিবিধ অফিস ও ফাইল খরচ</option>
                     </select>
-                  )}
-                </div>
+                  </div>
 
+                  <div>
+                    <label className="label-text">টাকার পরিমাণ (Amount) *</label>
+                    <input
+                      type="number"
+                      value={formAmount}
+                      onChange={(e) => setFormAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="যেমন: 2500"
+                      min={1}
+                      required
+                      className="input-field"
+                      style={{ fontWeight: 800, fontSize: "1.05rem" }}
+                    />
+                  </div>
+                </div>
+              ) : (
                 <div>
                   <label className="label-text">টাকার পরিমাণ (Amount) *</label>
                   <input
@@ -1566,7 +1525,7 @@ export default function DailyEntryModule() {
                     style={{ fontWeight: 800, fontSize: "1.05rem" }}
                   />
                 </div>
-              </div>
+              )}
 
               {/* Payment Method & Date */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
@@ -1813,6 +1772,23 @@ export default function DailyEntryModule() {
                 </span>
                 <span style={{ fontWeight: 900, color: selectedEntry.dueAmount > 0 ? "#fbbf24" : "#34d399" }}>
                   ৳ {selectedEntry.dueAmount.toLocaleString("en-IN")}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.95rem" }}>
+                <span style={{ color: "#38bdf8", fontWeight: 700 }}>
+                  এখন পর্যন্ত নিট লাভ (Profit):
+                </span>
+                <span
+                  style={{
+                    fontWeight: 900,
+                    color:
+                      (selectedEntry.profit ?? selectedEntry.inAmount - selectedEntry.outAmount) >= 0
+                        ? "#38bdf8"
+                        : "#f87171",
+                  }}
+                >
+                  {(selectedEntry.profit ?? selectedEntry.inAmount - selectedEntry.outAmount) >= 0 ? "+" : ""}
+                  ৳ {(selectedEntry.profit ?? selectedEntry.inAmount - selectedEntry.outAmount).toLocaleString("en-IN")}
                 </span>
               </div>
             </div>

@@ -94,6 +94,8 @@ export default function Dashboard() {
     | "passport_entry"
     | "overview"
     | "visa_applications"
+    | "accounts_visa_passport"
+    | "accounts"
     | "daily_entry"
     | "reports"
     | "passport_reports"
@@ -105,11 +107,13 @@ export default function Dashboard() {
     | null;
 
   // Active navigation tab
-  // Options: 'passport_entry' | 'overview' | 'visa_applications' | 'daily_entry' | 'reports' | 'passport_reports' | 'visa_reports' | 'hrm' | 'hrm_employees' | 'hrm_departments' | 'hrm_designations' | 'profile'
+  // Options: 'passport_entry' | 'overview' | 'visa_applications' | 'accounts_visa_passport' | 'accounts' | 'daily_entry' | 'reports' | 'passport_reports' | 'visa_reports' | 'hrm' | 'hrm_employees' | 'hrm_departments' | 'hrm_designations' | 'profile'
   const [activeTab, setActiveTabState] = useState<
     | "passport_entry"
     | "overview"
     | "visa_applications"
+    | "accounts_visa_passport"
+    | "accounts"
     | "daily_entry"
     | "reports"
     | "passport_reports"
@@ -119,12 +123,22 @@ export default function Dashboard() {
     | "hrm_departments"
     | "hrm_designations"
     | "profile"
-  >((tabFromUrl as any) || "passport_entry");
+  >(
+    (tabFromUrl === "daily_entry" || tabFromUrl === "accounts" || tabFromUrl === "accounts_visa_passport"
+      ? "accounts_visa_passport"
+      : (tabFromUrl as any)) || "passport_entry"
+  );
 
   // Sync tab with URL
   useEffect(() => {
-    if (tabFromUrl && tabFromUrl !== activeTab) {
-      setActiveTabState(tabFromUrl as any);
+    if (tabFromUrl) {
+      const resolvedTab =
+        tabFromUrl === "daily_entry" || tabFromUrl === "accounts"
+          ? "accounts_visa_passport"
+          : tabFromUrl;
+      if (resolvedTab !== activeTab) {
+        setActiveTabState(resolvedTab as any);
+      }
     }
   }, [tabFromUrl]);
 
@@ -133,6 +147,8 @@ export default function Dashboard() {
       | "passport_entry"
       | "overview"
       | "visa_applications"
+      | "accounts_visa_passport"
+      | "accounts"
       | "daily_entry"
       | "reports"
       | "passport_reports"
@@ -143,8 +159,10 @@ export default function Dashboard() {
       | "hrm_designations"
       | "profile"
   ) => {
-    setActiveTabState(tab);
-    router.push(`/admin?tab=${tab}`, { scroll: false });
+    const targetTab =
+      tab === "daily_entry" || tab === "accounts" ? "accounts_visa_passport" : tab;
+    setActiveTabState(targetTab);
+    router.push(`/admin?tab=${targetTab}`, { scroll: false });
   };
 
   // Sidebar accordions state
@@ -663,7 +681,7 @@ export default function Dashboard() {
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <Wallet size={18} style={{ color: "#34d399" }} />
-                  <span>অ্যাকাউন্ট মডিউল (Account)</span>
+                  <span>Accounts</span>
                 </div>
                 {accountOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               </button>
@@ -681,7 +699,7 @@ export default function Dashboard() {
                   }}
                 >
                   <button
-                    onClick={() => setActiveTab("daily_entry")}
+                    onClick={() => setActiveTab("accounts_visa_passport")}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -690,9 +708,23 @@ export default function Dashboard() {
                       borderRadius: "6px",
                       border: "none",
                       background:
-                        activeTab === "daily_entry" ? "var(--primary-gradient)" : "transparent",
-                      color: activeTab === "daily_entry" ? "#ffffff" : "var(--text-secondary)",
-                      fontWeight: activeTab === "daily_entry" ? 700 : 500,
+                        activeTab === "accounts_visa_passport" ||
+                        activeTab === "accounts" ||
+                        activeTab === "daily_entry"
+                          ? "var(--primary-gradient)"
+                          : "transparent",
+                      color:
+                        activeTab === "accounts_visa_passport" ||
+                        activeTab === "accounts" ||
+                        activeTab === "daily_entry"
+                          ? "#ffffff"
+                          : "var(--text-secondary)",
+                      fontWeight:
+                        activeTab === "accounts_visa_passport" ||
+                        activeTab === "accounts" ||
+                        activeTab === "daily_entry"
+                          ? 700
+                          : 500,
                       cursor: "pointer",
                       fontSize: "0.82rem",
                       textAlign: "left",
@@ -701,9 +733,11 @@ export default function Dashboard() {
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <CreditCard size={15} />
-                      <span>দৈনিক এন্ট্রি (Daily Entry)</span>
+                      <span>Visa & Passport</span>
                     </div>
-                    {activeTab === "daily_entry" && (
+                    {(activeTab === "accounts_visa_passport" ||
+                      activeTab === "accounts" ||
+                      activeTab === "daily_entry") && (
                       <span
                         style={{
                           fontSize: "0.68rem",
@@ -1161,7 +1195,9 @@ export default function Dashboard() {
         {activeTab === "passport_entry" && <PassportEntryModule />}
 
         {/* VIEW 1.5: DAILY ENTRY SUB-MODULE (ACCOUNT MODULE) */}
-        {activeTab === "daily_entry" && <DailyEntryModule />}
+        {(activeTab === "accounts_visa_passport" ||
+          activeTab === "accounts" ||
+          activeTab === "daily_entry") && <DailyEntryModule />}
 
         {/* VIEW 2: OVERVIEW SUMMARY */}
         {activeTab === "overview" && (
@@ -1247,7 +1283,7 @@ export default function Dashboard() {
 
               {/* Daily Accounting Ledger Quick Jump Card */}
               <div
-                onClick={() => setActiveTab("daily_entry")}
+                onClick={() => setActiveTab("accounts_visa_passport")}
                 className="glass-panel"
                 style={{
                   padding: "24px",
@@ -1272,7 +1308,7 @@ export default function Dashboard() {
                   <Wallet size={24} />
                 </div>
                 <h3 style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--text-main)", marginBottom: "6px" }}>
-                  দৈনিক হিসাব খাতা (Daily Entry) ➔
+                  Accounts (Visa & Passport) ➔
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", lineHeight: 1.5 }}>
                   পাসপোর্ট ও ভিসা এন্ট্রির নগদ জমা, মোট চুক্তি এবং বকেয়া টাকার দৈনিক ক্যাশবুক ও রিসিট।

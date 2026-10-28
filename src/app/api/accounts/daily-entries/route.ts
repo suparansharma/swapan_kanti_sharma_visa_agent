@@ -135,6 +135,18 @@ export async function GET(request: Request) {
       visaMap[v.trackingId] = v;
     }
 
+    // Pre-calculate total expenses for each referenceId
+    const fileExpenseMap: Record<string, number> = {};
+    const allExpenses = await AccountTransaction.find({ type: "expense" })
+      .select("referenceId amount")
+      .lean();
+    for (const exp of allExpenses) {
+      if (exp.referenceId) {
+        const refU = exp.referenceId.trim().toUpperCase();
+        fileExpenseMap[refU] = (fileExpenseMap[refU] || 0) + (Number(exp.amount) || 0);
+      }
+    }
+
     const unifiedList: any[] = [];
 
     // Map Account Transactions
@@ -143,16 +155,26 @@ export async function GET(request: Request) {
       const inAmount = isCollection ? tx.amount : 0;
       const outAmount = !isCollection ? tx.amount : 0;
 
-      // Find current live due
+      // Find current live due & paid
       let liveDue = 0;
       let liveTotal = 0;
+      let filePaid = 0;
       if (tx.moduleType === "passport" && passportMap[tx.referenceId]) {
         liveDue = passportMap[tx.referenceId].dueAmount || 0;
         liveTotal = passportMap[tx.referenceId].totalAmount || 0;
+        filePaid = passportMap[tx.referenceId].paidAmount || 0;
       } else if (tx.moduleType === "visa" && visaMap[tx.referenceId]) {
         liveDue = visaMap[tx.referenceId].dueAmount || 0;
         liveTotal = Number(visaMap[tx.referenceId].totalAmount ?? visaMap[tx.referenceId].feeAmount) || 0;
+        filePaid = visaMap[tx.referenceId].paidAmount || 0;
       }
+
+      const refU = (tx.referenceId || "").trim().toUpperCase();
+      const fileTotalExpense = fileExpenseMap[refU] || 0;
+      const profit =
+        filePaid > 0 || fileTotalExpense > 0
+          ? filePaid - fileTotalExpense
+          : inAmount - outAmount;
 
       unifiedList.push({
         id: tx._id.toString(),
@@ -169,6 +191,8 @@ export async function GET(request: Request) {
         totalAmount: liveTotal,
         inAmount,
         outAmount,
+        profit,
+        fileExpense: fileTotalExpense,
         dueAmount: liveDue,
         paymentStatus: liveDue <= 0 ? "paid" : "due",
         paymentMethod: tx.paymentMethod || "cash",
@@ -183,6 +207,9 @@ export async function GET(request: Request) {
       const total = Number(p.totalAmount) || 0;
       const paid = Number(p.paidAmount) || 0;
       const due = Number(p.dueAmount) || Math.max(0, total - paid);
+      const refU = p.entryNumber.trim().toUpperCase();
+      const fileTotalExpense = fileExpenseMap[refU] || 0;
+      const profit = paid - fileTotalExpense;
 
       unifiedList.push({
         id: p._id.toString(),
@@ -199,6 +226,8 @@ export async function GET(request: Request) {
         totalAmount: total,
         inAmount: paid,
         outAmount: 0,
+        profit,
+        fileExpense: fileTotalExpense,
         dueAmount: due,
         paymentStatus: due <= 0 && total > 0 ? "paid" : paid > 0 && due > 0 ? "partial" : "due",
         paymentMethod: "cash",
@@ -218,6 +247,9 @@ export async function GET(request: Request) {
       const due = Number(v.dueAmount) || Math.max(0, total - paid);
       const country = v.destinationCountry || "ভিসা";
       const sType = v.visaType || v.serviceType || "";
+      const refU = v.trackingId.trim().toUpperCase();
+      const fileTotalExpense = fileExpenseMap[refU] || 0;
+      const profit = paid - fileTotalExpense;
 
       unifiedList.push({
         id: v._id.toString(),
@@ -234,6 +266,8 @@ export async function GET(request: Request) {
         totalAmount: total,
         inAmount: paid,
         outAmount: 0,
+        profit,
+        fileExpense: fileTotalExpense,
         dueAmount: due,
         paymentStatus: due <= 0 && total > 0 ? "paid" : paid > 0 && due > 0 ? "partial" : "due",
         paymentMethod: "cash",

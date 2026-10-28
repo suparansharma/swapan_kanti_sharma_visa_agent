@@ -47,7 +47,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!category || !category.trim()) {
+    const effectiveCategory =
+      (category && category.trim()) ||
+      (type === "collection" ? "বকেয়া আদায় / কিস্তি জমা" : "");
+
+    if (!effectiveCategory) {
       return NextResponse.json(
         { error: "লেনদেনের খাত / বিষয় (Category) নির্বাচন করুন।" },
         { status: 400 }
@@ -136,7 +140,7 @@ export async function POST(request: Request) {
       applicantName: (applicantName || "গ্রাহক").trim(),
       phone: (phone || "").trim(),
       serviceTitle: (serviceTitle || "").trim(),
-      category: category.trim(),
+      category: effectiveCategory,
       amount: numAmount,
       paymentMethod: paymentMethod || "cash",
       notes: (notes || "").trim(),

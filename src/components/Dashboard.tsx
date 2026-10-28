@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import PassportEntryModule from "@/components/PassportEntryModule";
+import DailyEntryModule from "@/components/DailyEntryModule";
 import ReportModule from "@/components/ReportModule";
 import HRMModule from "@/components/HRMModule";
 import ProfileView from "@/components/ProfileView";
@@ -53,6 +54,7 @@ import {
   Briefcase,
   Users,
   BarChart3,
+  Wallet,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -92,6 +94,7 @@ export default function Dashboard() {
     | "passport_entry"
     | "overview"
     | "visa_applications"
+    | "daily_entry"
     | "reports"
     | "passport_reports"
     | "visa_reports"
@@ -102,11 +105,12 @@ export default function Dashboard() {
     | null;
 
   // Active navigation tab
-  // Options: 'passport_entry' | 'overview' | 'visa_applications' | 'reports' | 'passport_reports' | 'visa_reports' | 'hrm' | 'hrm_employees' | 'hrm_departments' | 'hrm_designations' | 'profile'
+  // Options: 'passport_entry' | 'overview' | 'visa_applications' | 'daily_entry' | 'reports' | 'passport_reports' | 'visa_reports' | 'hrm' | 'hrm_employees' | 'hrm_departments' | 'hrm_designations' | 'profile'
   const [activeTab, setActiveTabState] = useState<
     | "passport_entry"
     | "overview"
     | "visa_applications"
+    | "daily_entry"
     | "reports"
     | "passport_reports"
     | "visa_reports"
@@ -129,6 +133,7 @@ export default function Dashboard() {
       | "passport_entry"
       | "overview"
       | "visa_applications"
+      | "daily_entry"
       | "reports"
       | "passport_reports"
       | "visa_reports"
@@ -145,6 +150,7 @@ export default function Dashboard() {
   // Sidebar accordions state
   const [passportOpen, setPassportOpen] = useState(true);
   const [visaOpen, setVisaOpen] = useState(true);
+  const [accountOpen, setAccountOpen] = useState(true);
   const [reportsOpen, setReportsOpen] = useState(true);
   const [hrmOpen, setHrmOpen] = useState(true);
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
@@ -634,6 +640,88 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* 3. ACCOUNT MODULE ACCORDION */}
+            <div style={{ marginTop: "10px" }}>
+              <button
+                type="button"
+                onClick={() => setAccountOpen(!accountOpen)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "rgba(255, 255, 255, 0.03)",
+                  color: "var(--text-main)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: "0.88rem",
+                  transition: "background 0.2s",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <Wallet size={18} style={{ color: "#34d399" }} />
+                  <span>অ্যাকাউন্ট মডিউল (Account)</span>
+                </div>
+                {accountOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              </button>
+
+              {accountOpen && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "2px",
+                    paddingLeft: "16px",
+                    marginTop: "4px",
+                    borderLeft: "2px solid rgba(16, 185, 129, 0.3)",
+                    marginLeft: "18px",
+                  }}
+                >
+                  <button
+                    onClick={() => setActiveTab("daily_entry")}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background:
+                        activeTab === "daily_entry" ? "var(--primary-gradient)" : "transparent",
+                      color: activeTab === "daily_entry" ? "#ffffff" : "var(--text-secondary)",
+                      fontWeight: activeTab === "daily_entry" ? 700 : 500,
+                      cursor: "pointer",
+                      fontSize: "0.82rem",
+                      textAlign: "left",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <CreditCard size={15} />
+                      <span>দৈনিক এন্ট্রি (Daily Entry)</span>
+                    </div>
+                    {activeTab === "daily_entry" && (
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: "rgba(255, 255, 255, 0.2)",
+                          color: "#fff",
+                          fontWeight: 700,
+                        }}
+                      >
+                        Active
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* REPORT & ANALYTICS MODULE ACCORDION */}
             <div style={{ marginTop: "10px" }}>
               {/* Accordion Header */}
@@ -1072,6 +1160,9 @@ export default function Dashboard() {
         {/* VIEW 1: PASSPORT ENTRY SUB-MODULE (PRIMARY REQUEST) */}
         {activeTab === "passport_entry" && <PassportEntryModule />}
 
+        {/* VIEW 1.5: DAILY ENTRY SUB-MODULE (ACCOUNT MODULE) */}
+        {activeTab === "daily_entry" && <DailyEntryModule />}
+
         {/* VIEW 2: OVERVIEW SUMMARY */}
         {activeTab === "overview" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
@@ -1151,6 +1242,40 @@ export default function Dashboard() {
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", lineHeight: 1.5 }}>
                   কানাডা, যুক্তরাজ্য, যুক্তরাষ্ট্র ও মধ্যপ্রাচ্যের ভিসা ফাইল অগ্রগতি ও স্ট্যাটাস ট্র্যাকিং।
+                </p>
+              </div>
+
+              {/* Daily Accounting Ledger Quick Jump Card */}
+              <div
+                onClick={() => setActiveTab("daily_entry")}
+                className="glass-panel"
+                style={{
+                  padding: "24px",
+                  cursor: "pointer",
+                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                  transition: "all 0.2s",
+                }}
+              >
+                <div
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "10px",
+                    background: "rgba(16, 185, 129, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#34d399",
+                    marginBottom: "14px",
+                  }}
+                >
+                  <Wallet size={24} />
+                </div>
+                <h3 style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--text-main)", marginBottom: "6px" }}>
+                  দৈনিক হিসাব খাতা (Daily Entry) ➔
+                </h3>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", lineHeight: 1.5 }}>
+                  পাসপোর্ট ও ভিসা এন্ট্রির নগদ জমা, মোট চুক্তি এবং বকেয়া টাকার দৈনিক ক্যাশবুক ও রিসিট।
                 </p>
               </div>
 

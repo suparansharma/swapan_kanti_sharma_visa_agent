@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
+import AccountTransaction from "@/models/AccountTransaction";
 import PassportEntry from "@/models/PassportEntry";
 import VisaApplication from "@/models/VisaApplication";
 
@@ -11,6 +12,7 @@ export async function GET(request: Request) {
     const startDate = searchParams.get("startDate"); // YYYY-MM-DD
     const endDate = searchParams.get("endDate"); // YYYY-MM-DD
     const moduleType = searchParams.get("moduleType") || "all"; // 'all' | 'passport' | 'visa'
+    const transactionType = searchParams.get("transactionType") || "all"; // 'all' | 'collection' | 'expense'
     const paymentStatus = searchParams.get("paymentStatus") || "all"; // 'all' | 'paid' | 'partial' | 'due'
     const search = searchParams.get("search") || "";
 
@@ -30,15 +32,55 @@ export async function GET(request: Request) {
       }
     }
 
-    // Prepare search regex if any
+    const txDateQuery: Record<string, unknown> = {};
+    if (startDate || endDate) {
+      txDateQuery.date = {};
+      if (startDate) {
+        const s = new Date(startDate);
+        s.setHours(0, 0, 0, 0);
+        (txDateQuery.date as Record<string, unknown>).$gte = s;
+      }
+      if (endDate) {
+        const e = new Date(endDate);
+        e.setHours(23, 59, 59, 999);
+        (txDateQuery.date as Record<string, unknown>).$lte = e;
+      }
+    }
+
     let searchRegex: RegExp | null = null;
     if (search.trim()) {
       searchRegex = new RegExp(search.trim(), "i");
     }
 
-    // 2. Query Passport Entries
+    // 2. Fetch Account Transactions (Collections and File Expenses)
+    const txQuery: Record<string, unknown> = { ...txDateQuery };
+    if (moduleType !== "all") {
+      txQuery.moduleType = moduleType;
+    }
+    if (transactionType !== "all") {
+      txQuery.type = transactionType;
+    }
+    if (searchRegex) {
+      txQuery.$or = [
+        { referenceId: searchRegex },
+        { applicantName: searchRegex },
+        { phone: searchRegex },
+        { category: searchRegex },
+        { notes: searchRegex },
+        { transactionNumber: searchRegex },
+      ];
+    }
+
+    const transactions = await AccountTransaction.find(txQuery)
+      .sort({ date: -1, createdAt: -1 })
+      .lean();
+
+    // 3. Fetch Passport Entries (Initial Booking & deposits) if transactionType is not strictly 'expense'
     let passportEntries: any[] = [];
-    if (moduleType === "all" || moduleType === "passport") {
+    if (
+      (transactionType === "all" || transactionType === "collection") &&
+      (moduleType === "all" || moduleType === "passport")
+    ) {
       const pQuery: Record<string, unknown> = { ...dateQuery };
       if (searchRegex) {
         pQuery.$or = [
@@ -47,6 +89,7 @@ export async function GET(request: Request) {
           { nid: searchRegex },
           { entryNumber: searchRegex },
           { onlineTrackId: searchRegex },
+          { notes: searchRegex },
         ];
       }
       passportEntries = await PassportEntry.find(pQuery)
@@ -55,9 +98,12 @@ export async function GET(request: Request) {
         .lean();
     }
 
-    // 3. Query Visa Applications
+    // 4. Fetch Visa Applications (Initial Booking & deposits) if transactionType is not strictly 'expense'
     let visaApplications: any[] = [];
-    if (moduleType === "all" || moduleType === "visa") {
+    if (
+      (transactionType === "all" || transactionType === "collection") &&
+      (moduleType === "all" || moduleType === "visa")
+    ) {
       const vQuery: Record<string, unknown> = { ...dateQuery };
       if (searchRegex) {
         vQuery.$or = [
@@ -66,6 +112,7 @@ export async function GET(request: Request) {
           { phone: searchRegex },
           { trackingId: searchRegex },
           { destinationCountry: searchRegex },
+          { notes: searchRegex },
         ];
       }
       visaApplications = await VisaApplication.find(vQuery)
@@ -74,145 +121,182 @@ export async function GET(request: Request) {
         .lean();
     }
 
-    // Passport type labels for readability
-    const passportTypeLabels: Record<string, string> = {
-      "5y_regular_21d": "৫ বছর মেয়াদী সাধারণ (২১ দিন)",
-      "10y_regular_21d": "১০ বছর মেয়াদী সাধারণ (২১ দিন)",
-      "5y_urgent_7d": "৫ বছর মেয়াদী জরুরি (৭ দিন)",
-      "10y_urgent_7d": "১০ বছর মেয়াদী জরুরি (৭ দিন)",
-      "5y_very_urgent_3d": "৫ বছর অতীব জরুরি (৩ দিন)",
-      "10y_very_urgent_3d": "১০ বছর অতীব জরুরি (৩ দিন)",
-      "5y_noc_3d": "৫ বছর অতীব জরুরি (NOC)",
-      "10y_noc_3d": "১০ বছর অতীব জরুরি (NOC)",
-      "5y_go_medical_hajj_3d": "৫ বছর অতীব জরুরি (GO/হজ্জ/চিকিৎসা)",
-      "10y_go_medical_hajj_3d": "১০ বছর অতীব জরুরি (GO/হজ্জ/চিকিৎসা)",
-      "5y_go_govt_work_3d": "৫ বছর অতীব জরুরি (GO সরকারি কাজ)",
-      "10y_go_govt_work_3d": "১০ বছর অতীব জরুরি (GO সরকারি কাজ)",
-    };
+    // Look up map of passport/visa current due amounts
+    const passportMap: Record<string, any> = {};
+    const visaMap: Record<string, any> = {};
 
-    // Format unified records
+    const allPassports = await PassportEntry.find().select("entryNumber dueAmount totalAmount paidAmount").lean();
+    for (const p of allPassports) {
+      passportMap[p.entryNumber] = p;
+    }
+
+    const allVisas = await VisaApplication.find().select("trackingId dueAmount totalAmount feeAmount paidAmount").lean();
+    for (const v of allVisas) {
+      visaMap[v.trackingId] = v;
+    }
+
     const unifiedList: any[] = [];
 
-    // Map passport entries
+    // Map Account Transactions
+    for (const tx of transactions) {
+      const isCollection = tx.type === "collection";
+      const inAmount = isCollection ? tx.amount : 0;
+      const outAmount = !isCollection ? tx.amount : 0;
+
+      // Find current live due
+      let liveDue = 0;
+      let liveTotal = 0;
+      if (tx.moduleType === "passport" && passportMap[tx.referenceId]) {
+        liveDue = passportMap[tx.referenceId].dueAmount || 0;
+        liveTotal = passportMap[tx.referenceId].totalAmount || 0;
+      } else if (tx.moduleType === "visa" && visaMap[tx.referenceId]) {
+        liveDue = visaMap[tx.referenceId].dueAmount || 0;
+        liveTotal = Number(visaMap[tx.referenceId].totalAmount ?? visaMap[tx.referenceId].feeAmount) || 0;
+      }
+
+      unifiedList.push({
+        id: tx._id.toString(),
+        isTransactionRecord: true,
+        transactionNumber: tx.transactionNumber,
+        entryType: tx.type, // 'collection' | 'expense'
+        referenceId: tx.referenceId,
+        moduleType: tx.moduleType,
+        moduleLabel: tx.moduleType === "passport" ? "পাসপোর্ট" : tx.moduleType === "visa" ? "ভিসা" : "অন্যান্য",
+        applicantName: tx.applicantName,
+        phone: tx.phone || "—",
+        serviceTitle: tx.serviceTitle || (tx.moduleType === "passport" ? "পাসপোর্ট সেবা" : "ভিসা প্রসেসিং"),
+        category: tx.category,
+        totalAmount: liveTotal,
+        inAmount,
+        outAmount,
+        dueAmount: liveDue,
+        paymentStatus: liveDue <= 0 ? "paid" : "due",
+        paymentMethod: tx.paymentMethod || "cash",
+        notes: tx.notes || "",
+        createdAt: tx.date || tx.createdAt,
+        createdByName: tx.createdByName || "সিস্টেম",
+      });
+    }
+
+    // Map initial Passport Entries (Booking Deposits)
     for (const p of passportEntries) {
       const total = Number(p.totalAmount) || 0;
       const paid = Number(p.paidAmount) || 0;
       const due = Number(p.dueAmount) || Math.max(0, total - paid);
-      let pStatus: "paid" | "partial" | "due" = "due";
-      if (due <= 0 && total > 0) pStatus = "paid";
-      else if (paid > 0 && due > 0) pStatus = "partial";
 
       unifiedList.push({
         id: p._id.toString(),
-        referenceId: p.entryNumber || "PS",
+        isTransactionRecord: false,
+        transactionNumber: p.entryNumber,
+        entryType: "collection",
+        referenceId: p.entryNumber,
         moduleType: "passport",
         moduleLabel: "পাসপোর্ট",
         applicantName: p.name,
         phone: p.mobile,
-        nidOrPassportNo: p.nid || "—",
-        serviceTitle: passportTypeLabels[p.passportType] || p.passportType || "ই-পাসপোর্ট আবেদন",
+        serviceTitle: p.passportType || "ই-পাসপোর্ট আবেদন",
+        category: "ফাইল বুকিং ও প্রাথমিক জমা",
         totalAmount: total,
-        paidAmount: paid,
+        inAmount: paid,
+        outAmount: 0,
         dueAmount: due,
-        paymentStatus: pStatus,
-        status: p.status,
+        paymentStatus: due <= 0 && total > 0 ? "paid" : paid > 0 && due > 0 ? "partial" : "due",
+        paymentMethod: "cash",
+        notes: p.notes || "",
         createdAt: p.createdAt,
         createdByName:
           typeof p.createdBy === "object" && p.createdBy?.name
             ? p.createdBy.name
             : p.createdByName || "সিস্টেম",
-        notes: p.notes || "",
       });
     }
 
-    // Map visa entries
+    // Map initial Visa Applications (Booking Deposits)
     for (const v of visaApplications) {
       const total = Number(v.totalAmount ?? v.feeAmount) || 0;
       const paid = Number(v.paidAmount) || 0;
       const due = Number(v.dueAmount) || Math.max(0, total - paid);
-      let pStatus: "paid" | "partial" | "due" = "due";
-      if (due <= 0 && total > 0) pStatus = "paid";
-      else if (paid > 0 && due > 0) pStatus = "partial";
-
       const country = v.destinationCountry || "ভিসা";
-      const sType = v.visaType || v.serviceType || "ট্যুরিস্ট";
+      const sType = v.visaType || v.serviceType || "";
 
       unifiedList.push({
         id: v._id.toString(),
-        referenceId: v.trackingId || "VS",
+        isTransactionRecord: false,
+        transactionNumber: v.trackingId,
+        entryType: "collection",
+        referenceId: v.trackingId,
         moduleType: "visa",
         moduleLabel: "ভিসা",
         applicantName: v.applicantName,
         phone: v.phone,
-        nidOrPassportNo: v.passportNumber || "—",
         serviceTitle: `${country} (${sType})`,
+        category: "ফাইল বুকিং ও প্রাথমিক জমা",
         totalAmount: total,
-        paidAmount: paid,
+        inAmount: paid,
+        outAmount: 0,
         dueAmount: due,
-        paymentStatus: pStatus,
-        status: v.status,
+        paymentStatus: due <= 0 && total > 0 ? "paid" : paid > 0 && due > 0 ? "partial" : "due",
+        paymentMethod: "cash",
+        notes: v.notes || "",
         createdAt: v.createdAt,
         createdByName:
           typeof v.createdBy === "object" && v.createdBy?.name
             ? v.createdBy.name
             : v.createdByName || "সিস্টেম",
-        notes: v.notes || "",
       });
     }
 
     // Filter by paymentStatus if requested
     let filteredList = unifiedList;
     if (paymentStatus === "paid") {
-      filteredList = unifiedList.filter((item) => item.paymentStatus === "paid");
+      filteredList = unifiedList.filter((item) => item.dueAmount <= 0);
     } else if (paymentStatus === "due") {
       filteredList = unifiedList.filter((item) => item.dueAmount > 0);
-    } else if (paymentStatus === "partial") {
-      filteredList = unifiedList.filter((item) => item.paymentStatus === "partial");
     }
 
     // Sort descending by date
     filteredList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    // Calculate Summary Stats for Today (strict midnight to midnight)
+    // 5. Calculate KPI Metrics for Today
     const today = new Date();
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
     const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
 
-    const [allTodayPassports, allTodayVisas] = await Promise.all([
+    const [todayTxs, todayPassports, todayVisas] = await Promise.all([
+      AccountTransaction.find({ date: { $gte: todayStart, $lte: todayEnd } }).lean(),
       PassportEntry.find({ createdAt: { $gte: todayStart, $lte: todayEnd } }).lean(),
       VisaApplication.find({ createdAt: { $gte: todayStart, $lte: todayEnd } }).lean(),
     ]);
 
-    let todayContract = 0;
-    let todayPaid = 0;
+    let todayIn = 0;
+    let todayOut = 0;
     let todayDue = 0;
-    const todayPassportCount = allTodayPassports.length;
-    const todayVisaCount = allTodayVisas.length;
 
-    for (const p of allTodayPassports) {
-      const t = Number(p.totalAmount) || 0;
-      const pd = Number(p.paidAmount) || 0;
-      todayContract += t;
-      todayPaid += pd;
-      todayDue += Number(p.dueAmount) || Math.max(0, t - pd);
+    for (const tx of todayTxs) {
+      if (tx.type === "collection") todayIn += tx.amount || 0;
+      else todayOut += tx.amount || 0;
     }
 
-    for (const v of allTodayVisas) {
-      const t = Number(v.totalAmount ?? v.feeAmount) || 0;
+    for (const p of todayPassports) {
+      todayIn += Number(p.paidAmount) || 0;
+      todayDue += Number(p.dueAmount) || Math.max(0, (Number(p.totalAmount) || 0) - (Number(p.paidAmount) || 0));
+    }
+
+    for (const v of todayVisas) {
+      const tot = Number(v.totalAmount ?? v.feeAmount) || 0;
       const pd = Number(v.paidAmount) || 0;
-      todayContract += t;
-      todayPaid += pd;
-      todayDue += Number(v.dueAmount) || Math.max(0, t - pd);
+      todayIn += pd;
+      todayDue += Number(v.dueAmount) || Math.max(0, tot - pd);
     }
 
     // Calculate Filtered Summary
-    let filteredContract = 0;
-    let filteredPaid = 0;
+    let filteredIn = 0;
+    let filteredOut = 0;
     let filteredDue = 0;
     for (const item of filteredList) {
-      filteredContract += item.totalAmount;
-      filteredPaid += item.paidAmount;
-      filteredDue += item.dueAmount;
+      filteredIn += item.inAmount || 0;
+      filteredOut += item.outAmount || 0;
+      filteredDue += item.dueAmount || 0;
     }
 
     return NextResponse.json({
@@ -220,17 +304,21 @@ export async function GET(request: Request) {
       entries: filteredList,
       summary: {
         today: {
-          contract: todayContract,
-          paid: todayPaid,
-          due: todayDue,
-          passportCount: todayPassportCount,
-          visaCount: todayVisaCount,
-          totalCount: todayPassportCount + todayVisaCount,
+          inAmount: todayIn,
+          outAmount: todayOut,
+          netCash: todayIn - todayOut,
+          dueAmount: todayDue,
+          totalCount: todayTxs.length + todayPassports.length + todayVisas.length,
+          passportCount:
+            todayTxs.filter((t) => t.moduleType === "passport").length + todayPassports.length,
+          visaCount:
+            todayTxs.filter((t) => t.moduleType === "visa").length + todayVisas.length,
         },
         filtered: {
-          contract: filteredContract,
-          paid: filteredPaid,
-          due: filteredDue,
+          inAmount: filteredIn,
+          outAmount: filteredOut,
+          netCash: filteredIn - filteredOut,
+          dueAmount: filteredDue,
           totalCount: filteredList.length,
         },
       },

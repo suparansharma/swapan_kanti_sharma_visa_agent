@@ -81,6 +81,14 @@ interface VisaApplicationItem {
   feeStatus: "paid" | "partial" | "pending";
   receivedDate?: string;
   notes?: string;
+  applicationCategory?: "individual" | "family_group";
+  isFamilyHead?: boolean;
+  familyGroupId?: string;
+  familyHeadTrackingId?: string;
+  familyHeadName?: string;
+  familyRelation?: string;
+  familyMemberCount?: number;
+  groupMembersSummary?: string;
   createdBy?: { _id: string; name: string; email?: string } | string;
   createdByName?: string;
   updatedBy?: { _id: string; name: string; email?: string } | string;
@@ -216,6 +224,47 @@ export default function Dashboard() {
   const [notes, setNotes] = useState("");
   const [creatingVisa, setCreatingVisa] = useState(false);
 
+  // Family / Group application states
+  const [appCategory, setAppCategory] = useState<"individual" | "family_group">("individual");
+  const [familyMembers, setFamilyMembers] = useState<
+    Array<{
+      id: string;
+      applicantName: string;
+      passportNumber: string;
+      relation: string;
+      serviceType: string;
+      visaType: string;
+    }>
+  >([]);
+
+  const handleAddFamilyMember = () => {
+    setFamilyMembers((prev) => [
+      ...prev,
+      {
+        id: Math.random().toString(36).substring(2, 9),
+        applicantName: "",
+        passportNumber: "",
+        relation: prev.length === 0 ? "স্ত্রী" : "সন্তান",
+        serviceType: serviceType || "tourist_visa",
+        visaType: visaType || "",
+      },
+    ]);
+  };
+
+  const handleUpdateFamilyMember = (
+    id: string,
+    field: "applicantName" | "passportNumber" | "relation" | "serviceType" | "visaType",
+    val: string
+  ) => {
+    setFamilyMembers((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, [field]: val } : m))
+    );
+  };
+
+  const handleRemoveFamilyMember = (id: string) => {
+    setFamilyMembers((prev) => prev.filter((m) => m.id !== id));
+  };
+
   // Edit Visa modal state
   const [editingVisa, setEditingVisa] = useState<VisaApplicationItem | null>(null);
   const [editApplicantName, setEditApplicantName] = useState("");
@@ -297,6 +346,8 @@ export default function Dashboard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          applicationCategory: appCategory,
+          isFamilyGroup: appCategory === "family_group",
           applicantName,
           passportNumber,
           phone,
@@ -311,10 +362,16 @@ export default function Dashboard() {
           paidAmount: numVisaPaid,
           feeStatus,
           notes,
+          members:
+            appCategory === "family_group"
+              ? familyMembers.filter((m) => m.applicantName.trim() && m.passportNumber.trim())
+              : [],
         }),
       });
       if (res.ok) {
         setShowAddVisaModal(false);
+        setAppCategory("individual");
+        setFamilyMembers([]);
         setApplicantName("");
         setPassportNumber("");
         setPhone("");
@@ -1684,7 +1741,51 @@ export default function Dashboard() {
                       return (
                         <tr key={app._id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                           <td style={{ padding: "14px 18px", fontWeight: 700, color: "#38bdf8" }}>{app.trackingId}</td>
-                          <td style={{ padding: "14px 18px", fontWeight: 600 }}>{app.applicantName}</td>
+                          <td style={{ padding: "14px 18px", fontWeight: 600 }}>
+                            {app.applicationCategory === "family_group" ? (
+                              <div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                                  <span>{app.applicantName}</span>
+                                  {app.isFamilyHead ? (
+                                    <span
+                                      style={{
+                                        fontSize: "0.68rem",
+                                        padding: "2px 6px",
+                                        borderRadius: "4px",
+                                        background: "rgba(99, 102, 241, 0.18)",
+                                        color: "#a5b4fc",
+                                        border: "1px solid rgba(99, 102, 241, 0.35)",
+                                        fontWeight: 700,
+                                      }}
+                                    >
+                                      👨‍👩‍👧‍👦 ফ্যামিলি প্যাকেজ ({app.familyMemberCount || 1} জন)
+                                    </span>
+                                  ) : (
+                                    <span
+                                      style={{
+                                        fontSize: "0.68rem",
+                                        padding: "2px 6px",
+                                        borderRadius: "4px",
+                                        background: "rgba(56, 189, 248, 0.12)",
+                                        color: "#38bdf8",
+                                        border: "1px solid rgba(56, 189, 248, 0.25)",
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      🔗 ফ্যামিলি সদস্য ({app.familyRelation || "সদস্য"})
+                                    </span>
+                                  )}
+                                </div>
+                                {!app.isFamilyHead && app.familyHeadName && (
+                                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                    বিল প্রধান: {app.familyHeadName} ({app.familyHeadTrackingId})
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              app.applicantName
+                            )}
+                          </td>
                           <td style={{ padding: "14px 18px", fontFamily: "monospace", fontWeight: 700, color: "var(--text-main)" }}>
                             {app.passportNumber}
                           </td>
@@ -1713,7 +1814,13 @@ export default function Dashboard() {
                             )}
                           </td>
                           <td style={{ padding: "14px 18px", fontWeight: 700, color: due > 0 ? "#fbbf24" : "#34d399" }}>
-                            ৳ {due.toLocaleString("en-IN")}
+                            {app.applicationCategory === "family_group" && !app.isFamilyHead ? (
+                              <span style={{ fontSize: "0.78rem", color: "#38bdf8", fontWeight: 600 }}>
+                                (যৌথ বিলে)
+                              </span>
+                            ) : (
+                              `৳ ${due.toLocaleString("en-IN")}`
+                            )}
                           </td>
                           <td style={{ padding: "14px 18px" }}>
                             <select
@@ -2012,60 +2119,308 @@ export default function Dashboard() {
             className="glass-panel modal-container"
             style={{
               width: "100%",
-              maxWidth: "620px",
-              padding: "30px",
+              maxWidth: "680px",
+              maxHeight: "92vh",
+              overflowY: "auto",
+              padding: "28px",
               background: "var(--bg-modal)",
               border: "1px solid rgba(99, 102, 241, 0.4)",
               boxShadow: "var(--card-shadow)",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px" }}>
-              <h2 style={{ fontSize: "1.3rem", fontWeight: 800 }}>নতুন ভিসা ফাইল যোগ করুন</h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <h2 style={{ fontSize: "1.3rem", fontWeight: 800 }}>নতুন ভিসা ফাইল যোগ করুন</h2>
+                {appCategory === "family_group" && (
+                  <span
+                    style={{
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      padding: "3px 8px",
+                      borderRadius: "6px",
+                      background: "rgba(56, 189, 248, 0.15)",
+                      color: "#38bdf8",
+                      border: "1px solid rgba(56, 189, 248, 0.3)",
+                    }}
+                  >
+                    👨‍👩‍👧‍👦 মোট {1 + familyMembers.length} জন সদস্যের প্যাকেজ
+                  </span>
+                )}
+              </div>
               <button onClick={() => setShowAddVisaModal(false)} style={{ background: "transparent", border: "none", color: "var(--text-muted)", fontSize: "1.2rem", cursor: "pointer" }}>✕</button>
             </div>
+
+            {/* Application Category Toggle: Single vs Family / Group */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }}>
+              <button
+                type="button"
+                onClick={() => setAppCategory("individual")}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: appCategory === "individual" ? "2px solid #818cf8" : "1px solid var(--border-subtle)",
+                  background: appCategory === "individual" ? "rgba(99, 102, 241, 0.18)" : "rgba(255, 255, 255, 0.03)",
+                  color: appCategory === "individual" ? "#a5b4fc" : "var(--text-secondary)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <UserIcon size={16} />
+                <span>একক আবেদন (Single)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAppCategory("family_group");
+                  if (familyMembers.length === 0) {
+                    handleAddFamilyMember();
+                  }
+                }}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: appCategory === "family_group" ? "2px solid #38bdf8" : "1px solid var(--border-subtle)",
+                  background: appCategory === "family_group" ? "rgba(56, 189, 248, 0.18)" : "rgba(255, 255, 255, 0.03)",
+                  color: appCategory === "family_group" ? "#38bdf8" : "var(--text-secondary)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <Users size={16} />
+                <span>ফ্যামিলি / গ্রুপ আবেদন</span>
+              </button>
+            </div>
+
+            {/* Family Info Notice Banner */}
+            {appCategory === "family_group" && (
+              <div
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  background: "rgba(56, 189, 248, 0.08)",
+                  border: "1px solid rgba(56, 189, 248, 0.25)",
+                  fontSize: "0.8rem",
+                  color: "var(--text-secondary)",
+                  lineHeight: 1.45,
+                  marginBottom: "12px",
+                }}
+              >
+                💡 <strong style={{ color: "#38bdf8" }}>ফ্যামিলি প্যাকেজ মোড:</strong> পরিবার প্রধান ও অন্যান্য সদস্যদের পাসপোর্ট এখানে একত্রে এন্ট্রি করুন। আলাদা আলাদা টাকা ভাগ না করে নিচে পুরো পরিবারের জন্য <strong>একত্রে যৌথ চুক্তি টাকা ও জমা</strong> লিখুন। প্রত্যেকের জন্য আলাদা ট্র্যাকিং আইডি স্বয়ংক্রিয়ভাবে তৈরি হবে।
+              </div>
+            )}
+
             <form onSubmit={handleCreateVisa} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
-                  আবেদনকারীর নাম *
-                </label>
-                <input
-                  type="text"
-                  placeholder="যেমন: মোঃ কামরুল হাসান"
-                  value={applicantName}
-                  onChange={(e) => setApplicantName(e.target.value)}
-                  required
-                  className="input-field"
-                />
+              {/* Primary Applicant Section */}
+              <div
+                style={{
+                  background: appCategory === "family_group" ? "rgba(99, 102, 241, 0.05)" : "transparent",
+                  border: appCategory === "family_group" ? "1px solid rgba(99, 102, 241, 0.25)" : "none",
+                  borderRadius: "8px",
+                  padding: appCategory === "family_group" ? "14px" : "0",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                {appCategory === "family_group" && (
+                  <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "#818cf8" }}>
+                    ১. পরিবার প্রধানের তথ্য (Family Head / বিল ও যোগাযোগ প্রধান):
+                  </div>
+                )}
+
+                <div>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
+                    {appCategory === "family_group" ? "পরিবার প্রধানের নাম *" : "আবেদনকারীর নাম *"}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: মোঃ কামরুল হাসান"
+                    value={applicantName}
+                    onChange={(e) => setApplicantName(e.target.value)}
+                    required
+                    className="input-field"
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
+                      পাসপোর্ট নম্বর *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="যেমন: A12345678"
+                      value={passportNumber}
+                      onChange={(e) => setPassportNumber(e.target.value.toUpperCase())}
+                      required
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
+                      মোবাইল নম্বর *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="017XXXXXXXX"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      required
+                      className="input-field"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
-                    পাসপোর্ট নম্বর *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="যেমন: A12345678"
-                    value={passportNumber}
-                    onChange={(e) => setPassportNumber(e.target.value.toUpperCase())}
-                    required
-                    className="input-field"
-                  />
+              {/* Additional Family Members (Dynamic Rows) */}
+              {appCategory === "family_group" && (
+                <div
+                  style={{
+                    background: "rgba(56, 189, 248, 0.04)",
+                    border: "1px dashed rgba(56, 189, 248, 0.35)",
+                    borderRadius: "10px",
+                    padding: "14px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "12px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.86rem", fontWeight: 700, color: "#38bdf8", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <Users size={16} />
+                      ২. পরিবারের অন্যান্য সদস্যবৃন্দ ({familyMembers.length} জন):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAddFamilyMember}
+                      style={{
+                        background: "rgba(56, 189, 248, 0.15)",
+                        border: "1px solid rgba(56, 189, 248, 0.35)",
+                        color: "#38bdf8",
+                        padding: "5px 12px",
+                        borderRadius: "6px",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <Plus size={14} />
+                      <span>+ আরও সদস্য যোগ করুন</span>
+                    </button>
+                  </div>
+
+                  {familyMembers.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "0.82rem" }}>
+                      অন্যান্য সদস্যদের পাসপোর্ট যুক্ত করতে উপরের <strong>"+ আরও সদস্য যোগ করুন"</strong> বাটনে চাপ দিন।
+                    </div>
+                  ) : (
+                    familyMembers.map((m, idx) => (
+                      <div
+                        key={m.id}
+                        style={{
+                          background: "rgba(0, 0, 0, 0.25)",
+                          border: "1px solid var(--border-subtle)",
+                          borderRadius: "8px",
+                          padding: "12px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "8px",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#a5b4fc" }}>
+                            সদস্য #{idx + 2} (পাসপোর্ট #{idx + 2})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFamilyMember(m.id)}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              color: "#f87171",
+                              cursor: "pointer",
+                              fontSize: "0.76rem",
+                              fontWeight: 600,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "2px",
+                            }}
+                          >
+                            <Trash2 size={13} />
+                            <span>মুছুন</span>
+                          </button>
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: "8px" }}>
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "3px" }}>
+                              সদস্যের নাম *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="যেমন: ফাতেমা বেগম"
+                              value={m.applicantName}
+                              onChange={(e) => handleUpdateFamilyMember(m.id, "applicantName", e.target.value)}
+                              className="input-field"
+                              style={{ fontSize: "0.82rem", padding: "8px 10px" }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "3px" }}>
+                              পাসপোর্ট নম্বর *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="AXXXXXXXX"
+                              value={m.passportNumber}
+                              onChange={(e) => handleUpdateFamilyMember(m.id, "passportNumber", e.target.value.toUpperCase())}
+                              className="input-field"
+                              style={{ fontSize: "0.82rem", padding: "8px 10px" }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "3px" }}>
+                              সম্পর্ক
+                            </label>
+                            <select
+                              value={m.relation}
+                              onChange={(e) => handleUpdateFamilyMember(m.id, "relation", e.target.value)}
+                              className="input-field"
+                              style={{ fontSize: "0.82rem", padding: "8px 10px" }}
+                            >
+                              <option value="স্ত্রী">স্ত্রী</option>
+                              <option value="স্বামী">স্বামী</option>
+                              <option value="সন্তান">সন্তান</option>
+                              <option value="পিতা">পিতা</option>
+                              <option value="মাতা">মাতা</option>
+                              <option value="ভাই">ভাই</option>
+                              <option value="বোন">বোন</option>
+                              <option value="অন্যান্য">অন্যান্য</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
-                    মোবাইল নম্বর *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="017XXXXXXXX"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                    className="input-field"
-                  />
-                </div>
-              </div>
+              )}
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <div>
@@ -2159,7 +2514,7 @@ export default function Dashboard() {
                 </select>
               </div>
 
-              {/* Financial Breakdown (লেনদেন ও টাকার হিসাব) */}
+              {/* Financial Breakdown (যৌথ লেনদেন ও টাকার হিসাব) */}
               <div
                 className="financial-box"
                 style={{
@@ -2174,19 +2529,23 @@ export default function Dashboard() {
                 }}
               >
                 <div className="title" style={{ fontSize: "0.86rem", fontWeight: 700, color: "#818cf8" }}>
-                  লেনদেন ও টাকার হিসাব (Payment & Financials):
+                  {appCategory === "family_group"
+                    ? `যৌথ প্যাকেজ লেনদেন ও টাকার হিসাব (মোট ${1 + familyMembers.length} জনের বিল):`
+                    : "লেনদেন ও টাকার হিসাব (Payment & Financials):"}
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                   <div>
                     <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                      কত টাকা নিবে তার কাছে (Total Amount) *
+                      {appCategory === "family_group"
+                        ? `পুরো পরিবারের মোট প্যাকেজ টাকা (Total Agreement) *`
+                        : "কত টাকা নিবে তার কাছে (Total Amount) *"}
                     </label>
                     <input
                       type="number"
                       value={totalAmount}
                       onChange={(e) => setTotalAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="যেমন: 25000"
+                      placeholder={appCategory === "family_group" ? "যেমন: 50000" : "যেমন: 25000"}
                       required
                       min={0}
                       className="input-field"
@@ -2195,13 +2554,15 @@ export default function Dashboard() {
 
                   <div>
                     <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                      সে কত টাকা দিছে (Paid Amount) *
+                      {appCategory === "family_group"
+                        ? "পরিবার প্রধান কত টাকা জমা দিছে (Paid Amount) *"
+                        : "সে কত টাকা দিছে (Paid Amount) *"}
                     </label>
                     <input
                       type="number"
                       value={paidAmount}
                       onChange={(e) => setPaidAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="যেমন: 15000"
+                      placeholder={appCategory === "family_group" ? "যেমন: 30000" : "যেমন: 15000"}
                       required
                       min={0}
                       className="input-field"
@@ -2222,7 +2583,7 @@ export default function Dashboard() {
                   }}
                 >
                   <span style={{ fontSize: "0.85rem", fontWeight: 600, color: liveVisaDue > 0 ? "#fbbf24" : "#34d399" }}>
-                    বকেয়া টাকা (Due Amount - অটো হিসাব):
+                    {appCategory === "family_group" ? "পুরো পরিবারের বকেয়া টাকা (Family Due - অটো হিসাব):" : "বকেয়া টাকা (Due Amount - অটো হিসাব):"}
                   </span>
                   <span style={{ fontSize: "1.1rem", fontWeight: 800, color: liveVisaDue > 0 ? "#fbbf24" : "#34d399" }}>
                     ৳ {liveVisaDue.toLocaleString("en-IN")}

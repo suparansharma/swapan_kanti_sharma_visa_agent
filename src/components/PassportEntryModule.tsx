@@ -17,7 +17,8 @@ import {
   Calendar,
   CreditCard,
   Edit,
-  User,
+  User as UserIcon,
+  Users,
   ShieldCheck,
   Check,
   FileCheck,
@@ -45,6 +46,14 @@ export interface PassportEntryItem {
   status: string;
   deliveryDate?: string;
   notes?: string;
+  applicationCategory?: "individual" | "family_group";
+  isFamilyHead?: boolean;
+  familyGroupId?: string;
+  familyHeadEntryNumber?: string;
+  familyHeadName?: string;
+  familyRelation?: string;
+  familyMemberCount?: number;
+  groupMembersSummary?: string;
   createdBy?: { _id: string; name: string; email?: string } | string;
   createdByName?: string;
   updatedBy?: { _id: string; name: string; email?: string } | string;
@@ -105,6 +114,51 @@ export default function PassportEntryModule() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Family / Group Application Package State
+  const [appCategory, setAppCategory] = useState<"individual" | "family_group">("individual");
+  const [familyMembers, setFamilyMembers] = useState<
+    Array<{
+      id: string;
+      name: string;
+      mobile: string;
+      nid: string;
+      birthDate: string;
+      relation: string;
+      passportType: string;
+      onlineTrackId: string;
+    }>
+  >([]);
+
+  const handleAddFamilyMember = () => {
+    setFamilyMembers((prev) => [
+      ...prev,
+      {
+        id: Math.random().toString(36).substring(2, 9),
+        name: "",
+        mobile: "",
+        nid: "",
+        birthDate: "",
+        relation: "স্ত্রী",
+        passportType: passportType || PASSPORT_TYPE_OPTIONS[0].value,
+        onlineTrackId: "",
+      },
+    ]);
+  };
+
+  const handleUpdateFamilyMember = (
+    id: string,
+    field: "name" | "mobile" | "nid" | "birthDate" | "relation" | "passportType" | "onlineTrackId",
+    value: string
+  ) => {
+    setFamilyMembers((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, [field]: value } : m))
+    );
+  };
+
+  const handleRemoveFamilyMember = (id: string) => {
+    setFamilyMembers((prev) => prev.filter((m) => m.id !== id));
+  };
 
   // Quick Inline Online Track ID Edit
   const [editingTrackIdRow, setEditingTrackIdRow] = useState<string | null>(null);
@@ -192,7 +246,7 @@ export default function PassportEntryModule() {
     setFormError(null);
 
     if (!name.trim()) {
-      setFormError("আবেদনকারীর পুরো নাম লিখুন।");
+      setFormError(appCategory === "family_group" ? "পরিবার প্রধানের পুরো নাম লিখুন।" : "আবেদনকারীর পুরো নাম লিখুন।");
       return;
     }
     if (!mobile.trim()) {
@@ -206,6 +260,18 @@ export default function PassportEntryModule() {
     if (!birthDate.trim()) {
       setFormError("জন্মতারিখ নির্বাচন করুন।");
       return;
+    }
+
+    if (appCategory === "family_group") {
+      if (familyMembers.length === 0) {
+        setFormError("কমপক্ষে একজন অতিরিক্ত পরিবারের সদস্য যুক্ত করুন অথবা 'একক আবেদন' মোড ব্যবহার করুন।");
+        return;
+      }
+      const emptyNameIndex = familyMembers.findIndex((m) => !m.name.trim());
+      if (emptyNameIndex !== -1) {
+        setFormError(`সদস্য #${emptyNameIndex + 2} এর নাম পূরণ করুন।`);
+        return;
+      }
     }
 
     try {
@@ -226,6 +292,9 @@ export default function PassportEntryModule() {
           onlineTrackId: onlineTrackId.trim(),
           status,
           notes: notes.trim(),
+          applicationCategory: appCategory,
+          isFamilyGroup: appCategory === "family_group",
+          members: appCategory === "family_group" ? familyMembers : [],
         }),
       });
 
@@ -244,6 +313,8 @@ export default function PassportEntryModule() {
         setOnlineTrackId("");
         setPassportType(PASSPORT_TYPE_OPTIONS[0].value);
         setNotes("");
+        setAppCategory("individual");
+        setFamilyMembers([]);
         fetchEntries();
       } else {
         setFormError(data.error || "পাসপোর্ট এন্ট্রি সংরক্ষণ করা সম্ভব হয়নি।");
@@ -722,9 +793,53 @@ export default function PassportEntryModule() {
 
                     {/* Name */}
                     <td style={{ padding: "14px 18px" }}>
-                      <div style={{ fontWeight: 700, color: "var(--text-main)", fontSize: "0.92rem" }}>
-                        {item.name}
+                      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px" }}>
+                        <span style={{ fontWeight: 700, color: "var(--text-main)", fontSize: "0.92rem" }}>
+                          {item.name}
+                        </span>
+                        {item.applicationCategory === "family_group" && (
+                          item.isFamilyHead ? (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                fontSize: "0.72rem",
+                                background: "rgba(56, 189, 248, 0.15)",
+                                color: "#38bdf8",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                fontWeight: 700,
+                              }}
+                              title={`ফ্যামিলি গ্রুপ: ${item.familyGroupId || ""}`}
+                            >
+                              👨‍👩‍👧‍👦 ফ্যামিলি প্যাকেজ ({item.familyMemberCount || 1} জন)
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                fontSize: "0.72rem",
+                                background: "rgba(168, 85, 247, 0.15)",
+                                color: "#c084fc",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                fontWeight: 700,
+                              }}
+                              title={`বিল প্রধান: ${item.familyHeadName || "প্রধান"} (${item.familyHeadEntryNumber || ""})`}
+                            >
+                              🔗 {item.familyRelation || "ফ্যামিলি সদস্য"}
+                            </span>
+                          )
+                        )}
                       </div>
+                      {item.applicationCategory === "family_group" && !item.isFamilyHead && (
+                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                          বিল প্রধান: {item.familyHeadName || "প্রধান"} ({item.familyHeadEntryNumber || ""})
+                        </div>
+                      )}
                     </td>
 
                     {/* Mobile & Email */}
@@ -863,18 +978,46 @@ export default function PassportEntryModule() {
 
                     {/* Due Amount */}
                     <td style={{ padding: "14px 18px" }}>
-                      <div
-                        style={{
-                          fontWeight: 800,
-                          color: item.dueAmount > 0 ? "#fbbf24" : "#34d399",
-                          display: "inline-block",
-                          padding: "2px 8px",
-                          borderRadius: "4px",
-                          background: item.dueAmount > 0 ? "rgba(245, 158, 11, 0.12)" : "rgba(16, 185, 129, 0.12)",
-                        }}
-                      >
-                        ৳ {item.dueAmount.toLocaleString("en-IN")}
-                      </div>
+                      {item.applicationCategory === "family_group" && !item.isFamilyHead ? (
+                        <div>
+                          <span
+                            style={{
+                              fontSize: "0.76rem",
+                              fontWeight: 600,
+                              color: "#a5b4fc",
+                              background: "rgba(99, 102, 241, 0.1)",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              display: "inline-block",
+                            }}
+                          >
+                            যৌথ বিলে অন্তর্ভুক্ত
+                          </span>
+                          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                            প্রধান: {item.familyHeadEntryNumber || ""}
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div
+                            style={{
+                              fontWeight: 800,
+                              color: item.dueAmount > 0 ? "#fbbf24" : "#34d399",
+                              display: "inline-block",
+                              padding: "2px 8px",
+                              borderRadius: "4px",
+                              background: item.dueAmount > 0 ? "rgba(245, 158, 11, 0.12)" : "rgba(16, 185, 129, 0.12)",
+                            }}
+                          >
+                            ৳ {item.dueAmount.toLocaleString("en-IN")}
+                          </div>
+                          {item.applicationCategory === "family_group" && item.isFamilyHead && (
+                            <div style={{ fontSize: "0.7rem", color: "#38bdf8", marginTop: "2px", fontWeight: 600 }}>
+                              যৌথ ফ্যামিলি বিল
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
 
                     {/* Status Dropdown */}
@@ -1243,128 +1386,405 @@ export default function PassportEntryModule() {
               </div>
             )}
 
+            {/* Application Category Toggle: Single vs Family/Group */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
+              <button
+                type="button"
+                onClick={() => setAppCategory("individual")}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: appCategory === "individual" ? "2px solid #818cf8" : "1px solid var(--border-subtle)",
+                  background: appCategory === "individual" ? "rgba(99, 102, 241, 0.18)" : "rgba(255, 255, 255, 0.03)",
+                  color: appCategory === "individual" ? "#a5b4fc" : "var(--text-secondary)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <UserIcon size={16} />
+                <span>একক আবেদন (Single)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAppCategory("family_group");
+                  if (familyMembers.length === 0) {
+                    handleAddFamilyMember();
+                  }
+                }}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: appCategory === "family_group" ? "2px solid #38bdf8" : "1px solid var(--border-subtle)",
+                  background: appCategory === "family_group" ? "rgba(56, 189, 248, 0.18)" : "rgba(255, 255, 255, 0.03)",
+                  color: appCategory === "family_group" ? "#38bdf8" : "var(--text-secondary)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <Users size={16} />
+                <span>ফ্যামিলি / গ্রুপ আবেদন</span>
+              </button>
+            </div>
+
+            {/* Family Info Notice Banner */}
+            {appCategory === "family_group" && (
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  background: "rgba(56, 189, 248, 0.08)",
+                  border: "1px solid rgba(56, 189, 248, 0.25)",
+                  fontSize: "0.82rem",
+                  color: "var(--text-secondary)",
+                  lineHeight: 1.5,
+                  marginBottom: "16px",
+                }}
+              >
+                💡 <strong style={{ color: "#38bdf8" }}>ফ্যামিলি পাসপোর্ট প্যাকেজ মোড:</strong> পরিবার প্রধান ও অন্যান্য সদস্যদের পাসপোর্ট তথ্য এখানে একত্রে এন্ট্রি করুন। আলাদা আলাদা টাকা ভাগ না করে নিচে পুরো পরিবারের জন্য <strong>একত্রে যৌথ চুক্তি টাকা ও জমা</strong> লিখুন। প্রত্যেকের জন্য আলাদা পাসপোর্ট এন্ট্রি নং (PS-XXX) স্বয়ংক্রিয়ভাবে তৈরি হবে।
+              </div>
+            )}
+
             <form onSubmit={handleAddSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {/* Field 1: Name */}
-              <div>
-                <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                  আবেদনকারীর নাম (Full Name) *
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="যেমন: আব্দুর রহিম"
-                  required
-                  className="input-field"
-                />
-              </div>
+              {/* Primary Applicant Section */}
+              <div
+                style={{
+                  background: appCategory === "family_group" ? "rgba(99, 102, 241, 0.05)" : "transparent",
+                  border: appCategory === "family_group" ? "1px solid rgba(99, 102, 241, 0.25)" : "none",
+                  borderRadius: "8px",
+                  padding: appCategory === "family_group" ? "14px" : "0",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                {appCategory === "family_group" && (
+                  <div style={{ fontSize: "0.86rem", fontWeight: 700, color: "#818cf8" }}>
+                    ১. পরিবার প্রধানের পাসপোর্ট তথ্য (Family Head / বিল ও যোগাযোগ প্রধান):
+                  </div>
+                )}
 
-              {/* Field 2 & 3: Mobile & Email */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                {/* Field 1: Name */}
                 <div>
                   <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                    মোবাইল নম্বর (Mobile Number) *
+                    {appCategory === "family_group" ? "পরিবার প্রধানের নাম *" : "আবেদনকারীর নাম (Full Name) *"}
                   </label>
                   <input
                     type="text"
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
-                    placeholder="017xxxxxxxx"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="যেমন: আব্দুর রহিম"
                     required
                     className="input-field"
                   />
                 </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                    ইমেইল (Email Address)
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@gmail.com"
-                    className="input-field"
-                  />
-                </div>
-              </div>
 
-              {/* Field 4 & 5: NID & Birthdate */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                {/* Field 2 & 3: Mobile & Email */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
+                      মোবাইল নম্বর (Mobile Number) *
+                    </label>
+                    <input
+                      type="text"
+                      value={mobile}
+                      onChange={(e) => setMobile(e.target.value)}
+                      placeholder="017xxxxxxxx"
+                      required
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
+                      ইমেইল (ঐচ্ছিক)
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@gmail.com"
+                      className="input-field"
+                    />
+                  </div>
+                </div>
+
+                {/* Field 4 & 5: NID & Birthdate */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
+                      জাতীয় পরিচয়পত্র নম্বর (NID) *
+                    </label>
+                    <input
+                      type="text"
+                      value={nid}
+                      onChange={(e) => setNid(e.target.value)}
+                      placeholder="১০, ১৩ বা ১৭ ডিজিটের এনআইডি নং"
+                      required
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
+                      জন্মতারিখ (Birthdate) *
+                    </label>
+                    <input
+                      type="date"
+                      value={birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                      required
+                      className="input-field"
+                    />
+                  </div>
+                </div>
+
+                {/* Field 6: Passport Type & Received Date */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
+                      পাসপোর্ট ধরন (Passport Type)
+                    </label>
+                    <select
+                      value={passportType}
+                      onChange={(e) => setPassportType(e.target.value)}
+                      className="input-field"
+                    >
+                      {PASSPORT_TYPE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
+                      রিসিভ তারিখ (Received Date) *
+                    </label>
+                    <input
+                      type="date"
+                      value={receivedDate}
+                      onChange={(e) => setReceivedDate(e.target.value)}
+                      required
+                      className="input-field"
+                    />
+                  </div>
+                </div>
+
+                {/* Online Track ID */}
                 <div>
                   <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                    জাতীয় পরিচয়পত্র নম্বর (NID) *
+                    Online Track ID (অনলাইন ট্র্যাকিং আইডি / OID - ঐচ্ছিক)
                   </label>
                   <input
                     type="text"
-                    value={nid}
-                    onChange={(e) => setNid(e.target.value)}
-                    placeholder="১০, ১৩ বা ১৭ ডিজিটের এনআইডি নং"
-                    required
+                    value={onlineTrackId}
+                    onChange={(e) => setOnlineTrackId(e.target.value.toUpperCase())}
+                    placeholder="যেমন: OID-10023456"
                     className="input-field"
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                    জন্মতারিখ (Birthdate) *
-                  </label>
-                  <input
-                    type="date"
-                    value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
-                    required
-                    className="input-field"
+                    style={{ fontFamily: "monospace", textTransform: "uppercase" }}
                   />
                 </div>
               </div>
 
-              {/* Field 6: Passport Type & Received Date */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                    পাসপোর্ট ধরন (Passport Type)
-                  </label>
-                  <select
-                    value={passportType}
-                    onChange={(e) => setPassportType(e.target.value)}
-                    className="input-field"
-                  >
-                    {PASSPORT_TYPE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Additional Family Members (Dynamic Rows) */}
+              {appCategory === "family_group" && (
+                <div
+                  style={{
+                    background: "rgba(56, 189, 248, 0.04)",
+                    border: "1px dashed rgba(56, 189, 248, 0.35)",
+                    borderRadius: "10px",
+                    padding: "14px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "12px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.86rem", fontWeight: 700, color: "#38bdf8", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <Users size={16} />
+                      ২. পরিবারের অন্যান্য সদস্যবৃন্দ ({familyMembers.length} জন):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAddFamilyMember}
+                      style={{
+                        background: "rgba(56, 189, 248, 0.15)",
+                        border: "1px solid rgba(56, 189, 248, 0.35)",
+                        color: "#38bdf8",
+                        padding: "5px 12px",
+                        borderRadius: "6px",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <Plus size={14} />
+                      <span>+ আরও সদস্য যোগ করুন</span>
+                    </button>
+                  </div>
 
-                <div>
-                  <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                    রিসিভ তারিখ (Received Date) *
-                  </label>
-                  <input
-                    type="date"
-                    value={receivedDate}
-                    onChange={(e) => setReceivedDate(e.target.value)}
-                    required
-                    className="input-field"
-                    title="রিসিভ তারিখ নির্বাচন করুন (ডিফল্ট আজকের তারিখ)"
-                  />
-                </div>
-              </div>
+                  {familyMembers.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: "0.82rem" }}>
+                      অন্যান্য সদস্যদের পাসপোর্ট যুক্ত করতে উপরের <strong>"+ আরও সদস্য যোগ করুন"</strong> বাটনে চাপ দিন।
+                    </div>
+                  ) : (
+                    familyMembers.map((m, idx) => (
+                      <div
+                        key={m.id}
+                        style={{
+                          background: "rgba(0, 0, 0, 0.25)",
+                          border: "1px solid var(--border-subtle)",
+                          borderRadius: "8px",
+                          padding: "12px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "10px",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#a5b4fc" }}>
+                            সদস্য #{idx + 2} (পাসপোর্ট এন্ট্রি #{idx + 2})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFamilyMember(m.id)}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              color: "#f87171",
+                              cursor: "pointer",
+                              fontSize: "0.76rem",
+                              fontWeight: 600,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "2px",
+                            }}
+                          >
+                            <Trash2 size={13} />
+                            <span>মুছুন</span>
+                          </button>
+                        </div>
 
-              {/* Online Track ID */}
-              <div>
-                <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                  Online Track ID (অনলাইন ট্র্যাকিং আইডি / OID - ঐচ্ছিক)
-                </label>
-                <input
-                  type="text"
-                  value={onlineTrackId}
-                  onChange={(e) => setOnlineTrackId(e.target.value.toUpperCase())}
-                  placeholder="যেমন: OID-10023456"
-                  className="input-field"
-                  style={{ fontFamily: "monospace", textTransform: "uppercase" }}
-                />
-              </div>
+                        {/* Member Name and Relation */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "8px" }}>
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "3px" }}>
+                              সদস্যের পুরো নাম *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="যেমন: ফাতেমা বেগম"
+                              value={m.name}
+                              onChange={(e) => handleUpdateFamilyMember(m.id, "name", e.target.value)}
+                              className="input-field"
+                              style={{ fontSize: "0.82rem", padding: "8px 10px" }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "3px" }}>
+                              সম্পর্ক
+                            </label>
+                            <select
+                              value={m.relation}
+                              onChange={(e) => handleUpdateFamilyMember(m.id, "relation", e.target.value)}
+                              className="input-field"
+                              style={{ fontSize: "0.82rem", padding: "8px 10px" }}
+                            >
+                              <option value="স্ত্রী">স্ত্রী</option>
+                              <option value="স্বামী">স্বামী</option>
+                              <option value="সন্তান">সন্তান</option>
+                              <option value="পিতা">পিতা</option>
+                              <option value="মাতা">মাতা</option>
+                              <option value="ভাই">ভাই</option>
+                              <option value="বোন">বোন</option>
+                              <option value="অন্যান্য">অন্যান্য</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* NID / BRC and Birthdate */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "8px" }}>
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "3px" }}>
+                              NID / জন্মনিবন্ধন নং (BRC)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="এনআইডি বা ১৭ ডিজিটের জন্মনিবন্ধন"
+                              value={m.nid}
+                              onChange={(e) => handleUpdateFamilyMember(m.id, "nid", e.target.value)}
+                              className="input-field"
+                              style={{ fontSize: "0.82rem", padding: "8px 10px" }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "3px" }}>
+                              জন্মতারিখ
+                            </label>
+                            <input
+                              type="date"
+                              value={m.birthDate}
+                              onChange={(e) => handleUpdateFamilyMember(m.id, "birthDate", e.target.value)}
+                              className="input-field"
+                              style={{ fontSize: "0.82rem", padding: "8px 10px" }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Passport Type and Track ID */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "8px" }}>
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "3px" }}>
+                              পাসপোর্ট ধরন
+                            </label>
+                            <select
+                              value={m.passportType}
+                              onChange={(e) => handleUpdateFamilyMember(m.id, "passportType", e.target.value)}
+                              className="input-field"
+                              style={{ fontSize: "0.82rem", padding: "8px 10px" }}
+                            >
+                              {PASSPORT_TYPE_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "3px" }}>
+                              Online Track ID (ঐচ্ছিক)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="OID-XXXXXXXX"
+                              value={m.onlineTrackId}
+                              onChange={(e) => handleUpdateFamilyMember(m.id, "onlineTrackId", e.target.value.toUpperCase())}
+                              className="input-field"
+                              style={{ fontSize: "0.82rem", padding: "8px 10px", fontFamily: "monospace", textTransform: "uppercase" }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
 
               {/* Financial Breakdown (কত টাকা নিবে / কত দিছে / বকেয়া) */}
               <div
@@ -1380,19 +1800,23 @@ export default function PassportEntryModule() {
                 }}
               >
                 <div className="title" style={{ fontSize: "0.86rem", fontWeight: 700, color: "#818cf8" }}>
-                  লেনদেন ও টাকার হিসাব (Payment & Financials):
+                  {appCategory === "family_group"
+                    ? `পুরো পরিবারের যৌথ টাকার হিসাব (${1 + familyMembers.length} জনের মোট প্যাকেজ বিল):`
+                    : "লেনদেন ও টাকার হিসাব (Payment & Financials):"}
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                   <div>
                     <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                      কত টাকা নিবে তার কাছে (Total Amount) *
+                      {appCategory === "family_group"
+                        ? "পুরো পরিবারের যৌথ চুক্তি টাকা (Total Amount) *"
+                        : "কত টাকা নিবে তার কাছে (Total Amount) *"}
                     </label>
                     <input
                       type="number"
                       value={totalAmount}
                       onChange={(e) => setTotalAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="যেমন: 6500"
+                      placeholder={appCategory === "family_group" ? "যেমন: 35000" : "যেমন: 6500"}
                       required
                       min={0}
                       className="input-field"
@@ -1401,13 +1825,15 @@ export default function PassportEntryModule() {
 
                   <div>
                     <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                      সে কত টাকা দিছে (Paid Amount) *
+                      {appCategory === "family_group"
+                        ? "সে কত টাকা দিছে / জমা টাকা (Paid Amount) *"
+                        : "সে কত টাকা দিছে (Paid Amount) *"}
                     </label>
                     <input
                       type="number"
                       value={paidAmount}
                       onChange={(e) => setPaidAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="যেমন: 4000"
+                      placeholder={appCategory === "family_group" ? "যেমন: 20000" : "যেমন: 4000"}
                       required
                       min={0}
                       className="input-field"
@@ -1428,7 +1854,9 @@ export default function PassportEntryModule() {
                   }}
                 >
                   <span style={{ fontSize: "0.85rem", fontWeight: 600, color: liveDue > 0 ? "#fbbf24" : "#34d399" }}>
-                    বকেয়া টাকা (Due Amount - অটো হিসাব):
+                    {appCategory === "family_group"
+                      ? "পুরো পরিবারের বকেয়া টাকা (Family Due - অটো হিসাব):"
+                      : "বকেয়া টাকা (Due Amount - অটো হিসাব):"}
                   </span>
                   <span style={{ fontSize: "1.1rem", fontWeight: 800, color: liveDue > 0 ? "#fbbf24" : "#34d399" }}>
                     ৳ {liveDue.toLocaleString("en-IN")}
@@ -1484,7 +1912,11 @@ export default function PassportEntryModule() {
                   className="btn-primary"
                   style={{ flex: 1, padding: "12px" }}
                 >
-                  {submitting ? "সংরক্ষণ হচ্ছে..." : "পাসপোর্ট এন্ট্রি সেভ করুন"}
+                  {submitting
+                    ? "সংরক্ষণ হচ্ছে..."
+                    : appCategory === "family_group"
+                    ? `ফ্যামিলি প্যাকেজ সেভ করুন (${1 + familyMembers.length} জন)`
+                    : "পাসপোর্ট এন্ট্রি সেভ করুন"}
                 </button>
               </div>
             </form>
@@ -1532,8 +1964,26 @@ export default function PassportEntryModule() {
             >
               <div>
                 <h3 style={{ fontSize: "1.3rem", fontWeight: 800 }}>{selectedEntry.name}</h3>
-                <div style={{ fontSize: "0.82rem", color: "#38bdf8", fontWeight: 700 }}>
-                  এন্ট্রি নম্বর: {selectedEntry.entryNumber}
+                <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "8px", marginTop: "4px" }}>
+                  <div style={{ fontSize: "0.82rem", color: "#38bdf8", fontWeight: 700 }}>
+                    এন্ট্রি নম্বর: {selectedEntry.entryNumber}
+                  </div>
+                  {selectedEntry.applicationCategory === "family_group" && (
+                    <span
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: "4px",
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        background: selectedEntry.isFamilyHead ? "rgba(56, 189, 248, 0.15)" : "rgba(168, 85, 247, 0.15)",
+                        color: selectedEntry.isFamilyHead ? "#38bdf8" : "#c084fc",
+                      }}
+                    >
+                      {selectedEntry.isFamilyHead
+                        ? `👨‍👩‍👧‍👦 ফ্যামিলি প্যাকেজ প্রধান (${selectedEntry.familyMemberCount || 1} জন)`
+                        : `🔗 ফ্যামিলি সদস্য (${selectedEntry.familyRelation || "সদস্য"})`}
+                    </span>
+                  )}
                 </div>
               </div>
               <button
@@ -1658,6 +2108,50 @@ export default function PassportEntryModule() {
                   </form>
                 )}
               </div>
+
+              {/* Family Package Information Card */}
+              {selectedEntry.applicationCategory === "family_group" && (
+                selectedEntry.isFamilyHead ? (
+                  <div
+                    style={{
+                      padding: "12px",
+                      background: "rgba(56, 189, 248, 0.08)",
+                      border: "1px solid rgba(56, 189, 248, 0.25)",
+                      borderRadius: "6px",
+                      fontSize: "0.82rem",
+                      color: "#bae6fd",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    👨‍👩‍👧‍👦 <strong>ফ্যামিলি প্যাকেজ প্রধান:</strong> মোট সদস্য {selectedEntry.familyMemberCount || 1} জন। গ্রুপ আইডি: <code>{selectedEntry.familyGroupId}</code>
+                    {selectedEntry.groupMembersSummary && (
+                      <div style={{ marginTop: "4px", fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                        প্যাকেজ সদস্যগণ: {selectedEntry.groupMembersSummary}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      padding: "12px",
+                      background: "rgba(168, 85, 247, 0.08)",
+                      border: "1px solid rgba(168, 85, 247, 0.25)",
+                      borderRadius: "6px",
+                      fontSize: "0.82rem",
+                      color: "#d8b4fe",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    🔗 <strong>ফ্যামিলি প্যাকেজ সদস্য:</strong> সম্পর্ক: {selectedEntry.familyRelation || "সদস্য"}।
+                    <div style={{ marginTop: "3px" }}>
+                      বিল ও পরিবার প্রধান: <strong>{selectedEntry.familyHeadName} ({selectedEntry.familyHeadEntryNumber})</strong>
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px" }}>
+                      এই সদস্যের সকল খরচ ও লেনদেন পরিবার প্রধানের যৌথ প্যাকেজে অন্তর্ভুক্ত রয়েছে।
+                    </div>
+                  </div>
+                )
+              )}
 
               {/* Notes */}
               <div style={{ marginTop: "6px", padding: "12px", background: "rgba(99, 102, 241, 0.06)", borderRadius: "6px", borderLeft: "3px solid #6366f1" }}>

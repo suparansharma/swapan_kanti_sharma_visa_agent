@@ -19,6 +19,14 @@ export interface IVisaApplication extends Document {
   feeStatus: "paid" | "partial" | "pending";
   receivedDate?: string; // রিসিভ তারিখ / Received Date
   notes?: string;
+  applicationCategory?: "individual" | "family_group"; // আবেদনের ধরন
+  isFamilyHead?: boolean; // পরিবার প্রধান কিনা
+  familyGroupId?: string; // ফ্যামিলি গ্রুপ আইডি (e.g. FAM-001)
+  familyHeadTrackingId?: string; // পরিবার প্রধানের ট্র্যাকিং আইডি
+  familyHeadName?: string; // পরিবার প্রধানের নাম
+  familyRelation?: string; // সম্পর্ক (যেমন: প্রধান, স্ত্রী, সন্তান)
+  familyMemberCount?: number; // ফ্যামিলি প্যাকেজে মোট সদস্য সংখ্যা
+  groupMembersSummary?: string; // সদস্য তালিকা সংক্ষেপ
   createdBy?: mongoose.Types.ObjectId;
   createdByName?: string;
   updatedBy?: mongoose.Types.ObjectId;
@@ -112,6 +120,44 @@ const VisaApplicationSchema = new Schema<IVisaApplication>(
       type: String,
       default: "",
     },
+    applicationCategory: {
+      type: String,
+      enum: ["individual", "family_group"],
+      default: "individual",
+    },
+    isFamilyHead: {
+      type: Boolean,
+      default: false,
+    },
+    familyGroupId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    familyHeadTrackingId: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: "",
+    },
+    familyHeadName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    familyRelation: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    familyMemberCount: {
+      type: Number,
+      default: 1,
+    },
+    groupMembersSummary: {
+      type: String,
+      default: "",
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -145,6 +191,8 @@ VisaApplicationSchema.pre("save", function () {
 // Search indexes for rapid lookup by trackingId or passportNumber
 VisaApplicationSchema.index({ trackingId: 1 });
 VisaApplicationSchema.index({ passportNumber: 1 });
+VisaApplicationSchema.index({ familyGroupId: 1 });
+VisaApplicationSchema.index({ familyHeadTrackingId: 1 });
 
 const VisaApplication: Model<IVisaApplication> =
   mongoose.models.VisaApplication ||

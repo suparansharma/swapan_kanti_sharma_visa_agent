@@ -32,6 +32,9 @@ export async function GET(request: Request) {
         { phone: regex },
         { destinationCountry: regex },
         { visaType: regex },
+        { familyGroupId: regex },
+        { familyHeadName: regex },
+        { familyHeadTrackingId: regex },
       ];
     }
 
@@ -187,6 +190,9 @@ export async function POST(request: Request) {
       receivedDate,
       estimatedDelivery,
       notes,
+      applicationCategory,
+      isFamilyGroup,
+      members,
     } = body;
 
     const country = (destinationCountry || "India").trim();
@@ -198,30 +204,53 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate sequential tracking ID: VS-001, VS-002, ...
-    let nextNum = 1;
-    const latestApp = await VisaApplication.findOne({ trackingId: /^VS-\d+$/ })
-      .sort({ createdAt: -1 })
-      .select("trackingId")
-      .lean();
+    // Helper: Next Sequential Tracking ID
+    const getNextTrackingId = async (): Promise<string> => {
+      let nextNum = 1;
+      const latestApp = await VisaApplication.findOne({ trackingId: /^VS-\d+$/ })
+        .sort({ createdAt: -1 })
+        .select("trackingId")
+        .lean();
 
-    if (latestApp && latestApp.trackingId) {
-      const match = latestApp.trackingId.match(/^VS-(\d+)$/);
-      if (match) {
-        nextNum = parseInt(match[1], 10) + 1;
+      if (latestApp && latestApp.trackingId) {
+        const match = latestApp.trackingId.match(/^VS-(\d+)$/);
+        if (match) {
+          nextNum = parseInt(match[1], 10) + 1;
+        }
+      } else {
+        const count = await VisaApplication.countDocuments();
+        nextNum = count + 1;
       }
-    } else {
-      // Fallback: If no VS-xxx records exist yet, count existing applications
-      const count = await VisaApplication.countDocuments();
-      nextNum = count + 1;
-    }
 
-    // Ensure uniqueness in case of concurrent requests or gaps
-    let trackingId = `VS-${String(nextNum).padStart(3, "0")}`;
-    while (await VisaApplication.exists({ trackingId })) {
-      nextNum += 1;
-      trackingId = `VS-${String(nextNum).padStart(3, "0")}`;
-    }
+      let trackingId = `VS-${String(nextNum).padStart(3, "0")}`;
+      while (await VisaApplication.exists({ trackingId })) {
+        nextNum += 1;
+        trackingId = `VS-${String(nextNum).padStart(3, "0")}`;
+      }
+      return trackingId;
+    };
+
+    // Helper: Next Sequential Family Group ID
+    const getNextFamilyGroupId = async (): Promise<string> => {
+      let nextNum = 1;
+      const latestFamily = await VisaApplication.findOne({ familyGroupId: /^FAM-\d+$/ })
+        .sort({ createdAt: -1 })
+        .select("familyGroupId")
+        .lean();
+
+      if (latestFamily && latestFamily.familyGroupId) {
+        const match = latestFamily.familyGroupId.match(/^FAM-(\d+)$/);
+        if (match) {
+          nextNum = parseInt(match[1], 10) + 1;
+        }
+      }
+      let familyGroupId = `FAM-${String(nextNum).padStart(3, "0")}`;
+      while (await VisaApplication.exists({ familyGroupId })) {
+        nextNum += 1;
+        familyGroupId = `FAM-${String(nextNum).padStart(3, "0")}`;
+      }
+      return familyGroupId;
+    };
 
     const numTotal = Number(totalAmount ?? feeAmount) || 0;
     const numPaid = Number(paidAmount) || 0;
@@ -234,6 +263,115 @@ export async function POST(request: Request) {
         ? "partial"
         : "pending");
 
+    const effectiveReceivedDate = receivedDate ? receivedDate.trim() : new Date().toISOString().split("T")[0];
+
+    // Determine if this is a Family / Group Application
+    const isGroup = applicationCategory === "family_group" || isFamilyGroup || (Array.isArray(members) && members.length > 0);
+    const validMembers: Array<{
+      applicantName: string;
+      passportNumber: string;
+      relation?: string;
+      visaType?: string;
+      serviceType?: string;
+      phone?: string;
+    }> = Array.isArray(members)
+      ? members.filter(
+          (m) =>
+            m &&
+            typeof m.applicantName === "string" &&
+            m.applicantName.trim() &&
+            typeof m.passportNumber === "string" &&
+            m.passportNumber.trim()
+        )
+      : [];
+
+    if (isGroup && validMembers.length > 0) {
+      const familyGroupId = await getNextFamilyGroupId();
+      const headTrackingId = await getNextTrackingId();
+      const totalMemberCount = 1 + validMembers.length;
+      const memberSummary = [applicantName.trim(), ...validMembers.map((m) => m.applicantName.trim())].join(", ");
+
+      // 1. Create Primary Applicant doc (Family Head - holds total package financial liability)
+      const primaryApp = await VisaApplication.create({
+        trackingId: headTrackingId,
+        applicantName: applicantName.trim(),
+        passportNumber: passportNumber.trim().toUpperCase(),
+        phone: phone.trim(),
+        email: email ? email.trim() : "",
+        destinationCountry: country,
+        visaType: visaType ? visaType.trim() : "",
+        serviceType: serviceType || "tourist_visa",
+        status: status || "submitted",
+        feeAmount: numTotal,
+        totalAmount: numTotal,
+        paidAmount: numPaid,
+        dueAmount: computedDue,
+        feeStatus: computedFeeStatus,
+        receivedDate: effectiveReceivedDate,
+        estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : undefined,
+        notes: notes || "",
+        applicationCategory: "family_group",
+        isFamilyHead: true,
+        familyGroupId,
+        familyHeadTrackingId: headTrackingId,
+        familyHeadName: applicantName.trim(),
+        familyRelation: "প্রধান আবেদনকারী (Family Head)",
+        familyMemberCount: totalMemberCount,
+        groupMembersSummary: memberSummary,
+        createdBy: authUser?.userId ? (authUser.userId as unknown as string) : undefined,
+        createdByName: authUser?.name || "",
+      });
+
+      // 2. Create records for each family member (each gets individual tracking ID for separate passport processing)
+      const createdMembers = [];
+      for (const m of validMembers) {
+        const memberTrackingId = await getNextTrackingId();
+        const memberApp = await VisaApplication.create({
+          trackingId: memberTrackingId,
+          applicantName: m.applicantName.trim(),
+          passportNumber: m.passportNumber.trim().toUpperCase(),
+          phone: m.phone ? m.phone.trim() : phone.trim(),
+          email: email ? email.trim() : "",
+          destinationCountry: country,
+          visaType: m.visaType ? m.visaType.trim() : (visaType ? visaType.trim() : ""),
+          serviceType: m.serviceType || serviceType || "tourist_visa",
+          status: status || "submitted",
+          feeAmount: 0,
+          totalAmount: 0,
+          paidAmount: 0,
+          dueAmount: 0,
+          feeStatus: computedFeeStatus,
+          receivedDate: effectiveReceivedDate,
+          estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : undefined,
+          notes: notes ? `${notes} | ফ্যামিলি প্যাকেজ (বিল প্রধান: ${applicantName.trim()} - ${headTrackingId})` : `ফ্যামিলি প্যাকেজ (বিল প্রধান: ${applicantName.trim()} - ${headTrackingId})`,
+          applicationCategory: "family_group",
+          isFamilyHead: false,
+          familyGroupId,
+          familyHeadTrackingId: headTrackingId,
+          familyHeadName: applicantName.trim(),
+          familyRelation: m.relation || "পরিবার সদস্য",
+          familyMemberCount: totalMemberCount,
+          groupMembersSummary: memberSummary,
+          createdBy: authUser?.userId ? (authUser.userId as unknown as string) : undefined,
+          createdByName: authUser?.name || "",
+        });
+        createdMembers.push(memberApp);
+      }
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: `ফ্যামিলি প্যাকেজ সফলভাবে তৈরি হয়েছে (${totalMemberCount} জন সদস্য)`,
+          application: primaryApp,
+          membersCount: createdMembers.length,
+          familyGroupId,
+        },
+        { status: 201 }
+      );
+    }
+
+    // Default: Single / Individual Application
+    const trackingId = await getNextTrackingId();
     const newApp = await VisaApplication.create({
       trackingId,
       applicantName: applicantName.trim(),
@@ -249,9 +387,17 @@ export async function POST(request: Request) {
       paidAmount: numPaid,
       dueAmount: computedDue,
       feeStatus: computedFeeStatus,
-      receivedDate: receivedDate ? receivedDate.trim() : new Date().toISOString().split("T")[0],
+      receivedDate: effectiveReceivedDate,
       estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : undefined,
       notes: notes || "",
+      applicationCategory: "individual",
+      isFamilyHead: false,
+      familyGroupId: "",
+      familyHeadTrackingId: "",
+      familyHeadName: "",
+      familyRelation: "",
+      familyMemberCount: 1,
+      groupMembersSummary: "",
       createdBy: authUser?.userId ? (authUser.userId as unknown as string) : undefined,
       createdByName: authUser?.name || "",
     });
@@ -342,6 +488,14 @@ export async function PUT(request: Request) {
 
     if (!updated) {
       return NextResponse.json({ error: "Application not found" }, { status: 404 });
+    }
+
+    // Sync feeStatus to family members if updated record is Family Head
+    if (updated.isFamilyHead && updated.familyGroupId && updated.feeStatus) {
+      await VisaApplication.updateMany(
+        { familyGroupId: updated.familyGroupId, isFamilyHead: false },
+        { feeStatus: updated.feeStatus }
+      );
     }
 
     return NextResponse.json({

@@ -28,6 +28,10 @@ export async function GET(request: Request) {
         { entryNumber: regex },
         { email: regex },
         { onlineTrackId: regex },
+        { familyGroupId: regex },
+        { familyHeadName: regex },
+        { familyHeadEntryNumber: regex },
+        { groupMembersSummary: regex },
       ];
     }
 
@@ -135,6 +139,9 @@ export async function POST(request: Request) {
       status,
       deliveryDate,
       notes,
+      applicationCategory,
+      isFamilyGroup,
+      members,
     } = body;
 
     if (!name || !mobile || !nid || !birthDate) {
@@ -147,32 +154,155 @@ export async function POST(request: Request) {
     const parsedTotal = Math.max(0, Number(totalAmount) || 0);
     const parsedPaid = Math.max(0, Number(paidAmount) || 0);
     const calculatedDue = Math.max(0, parsedTotal - parsedPaid);
+    const effectiveReceivedDate = receivedDate ? receivedDate.trim() : new Date().toISOString().split("T")[0];
 
-    // Generate sequential entry serial: PS-001, PS-002, ...
-    let nextNum = 1;
-    const latestEntry = await PassportEntry.findOne({ entryNumber: /^PS-\d+$/ })
-      .sort({ createdAt: -1 })
-      .select("entryNumber")
-      .lean();
+    // Helper: Next Sequential Entry Number (PS-001)
+    const getNextEntryNumber = async (): Promise<string> => {
+      let nextNum = 1;
+      const latestEntry = await PassportEntry.findOne({ entryNumber: /^PS-\d+$/ })
+        .sort({ createdAt: -1 })
+        .select("entryNumber")
+        .lean();
 
-    if (latestEntry && latestEntry.entryNumber) {
-      const match = latestEntry.entryNumber.match(/^PS-(\d+)$/);
-      if (match) {
-        nextNum = parseInt(match[1], 10) + 1;
+      if (latestEntry && latestEntry.entryNumber) {
+        const match = latestEntry.entryNumber.match(/^PS-(\d+)$/);
+        if (match) {
+          nextNum = parseInt(match[1], 10) + 1;
+        }
+      } else {
+        const count = await PassportEntry.countDocuments();
+        nextNum = count + 1;
       }
-    } else {
-      // Fallback: If no PS-xxx records exist yet, count existing entries
-      const count = await PassportEntry.countDocuments();
-      nextNum = count + 1;
+
+      let entryNumber = `PS-${String(nextNum).padStart(3, "0")}`;
+      while (await PassportEntry.exists({ entryNumber })) {
+        nextNum += 1;
+        entryNumber = `PS-${String(nextNum).padStart(3, "0")}`;
+      }
+      return entryNumber;
+    };
+
+    // Helper: Next Sequential Family Group ID (FAM-PS-001)
+    const getNextFamilyGroupId = async (): Promise<string> => {
+      let nextNum = 1;
+      const latestFamily = await PassportEntry.findOne({ familyGroupId: /^FAM-PS-\d+$/ })
+        .sort({ createdAt: -1 })
+        .select("familyGroupId")
+        .lean();
+
+      if (latestFamily && latestFamily.familyGroupId) {
+        const match = latestFamily.familyGroupId.match(/^FAM-PS-(\d+)$/);
+        if (match) {
+          nextNum = parseInt(match[1], 10) + 1;
+        }
+      }
+      let familyGroupId = `FAM-PS-${String(nextNum).padStart(3, "0")}`;
+      while (await PassportEntry.exists({ familyGroupId })) {
+        nextNum += 1;
+        familyGroupId = `FAM-PS-${String(nextNum).padStart(3, "0")}`;
+      }
+      return familyGroupId;
+    };
+
+    // Check if Family / Group Application
+    const isGroup = applicationCategory === "family_group" || isFamilyGroup || (Array.isArray(members) && members.length > 0);
+    const validMembers: Array<{
+      name: string;
+      mobile?: string;
+      nid?: string;
+      birthDate?: string;
+      relation?: string;
+      passportType?: string;
+      onlineTrackId?: string;
+    }> = Array.isArray(members)
+      ? members.filter(
+          (m) => m && typeof m.name === "string" && m.name.trim()
+        )
+      : [];
+
+    if (isGroup && validMembers.length > 0) {
+      const familyGroupId = await getNextFamilyGroupId();
+      const headEntryNumber = await getNextEntryNumber();
+      const totalMemberCount = 1 + validMembers.length;
+      const memberSummary = [name.trim(), ...validMembers.map((m) => m.name.trim())].join(", ");
+
+      // 1. Create Primary Entry doc (Family Head - holds total package financial liability)
+      const primaryEntry = await PassportEntry.create({
+        entryNumber: headEntryNumber,
+        name: name.trim(),
+        mobile: mobile.trim(),
+        email: email ? email.trim() : "",
+        nid: nid.trim(),
+        birthDate: birthDate.trim(),
+        passportType: passportType || "e_passport_10y_48p",
+        receivedDate: effectiveReceivedDate,
+        totalAmount: parsedTotal,
+        paidAmount: parsedPaid,
+        dueAmount: calculatedDue,
+        onlineTrackId: onlineTrackId ? onlineTrackId.trim() : "",
+        status: status || "submitted",
+        deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
+        notes: notes || "",
+        applicationCategory: "family_group",
+        isFamilyHead: true,
+        familyGroupId,
+        familyHeadEntryNumber: headEntryNumber,
+        familyHeadName: name.trim(),
+        familyRelation: "প্রধান আবেদনকারী (Family Head)",
+        familyMemberCount: totalMemberCount,
+        groupMembersSummary: memberSummary,
+        createdBy: authUser?.userId ? (authUser.userId as unknown as string) : undefined,
+        createdByName: authUser?.name || "",
+      });
+
+      // 2. Create records for each family member
+      const createdMembers = [];
+      for (const m of validMembers) {
+        const memberEntryNumber = await getNextEntryNumber();
+        const memberEntry = await PassportEntry.create({
+          entryNumber: memberEntryNumber,
+          name: m.name.trim(),
+          mobile: m.mobile ? m.mobile.trim() : mobile.trim(),
+          email: email ? email.trim() : "",
+          nid: m.nid ? m.nid.trim() : "—",
+          birthDate: m.birthDate ? m.birthDate.trim() : "—",
+          passportType: m.passportType || passportType || "e_passport_10y_48p",
+          receivedDate: effectiveReceivedDate,
+          totalAmount: 0,
+          paidAmount: 0,
+          dueAmount: 0,
+          onlineTrackId: m.onlineTrackId ? m.onlineTrackId.trim() : "",
+          status: status || "submitted",
+          deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
+          notes: notes ? `${notes} | ফ্যামিলি প্যাকেজ (বিল প্রধান: ${name.trim()} - ${headEntryNumber})` : `ফ্যামিলি প্যাকেজ (বিল প্রধান: ${name.trim()} - ${headEntryNumber})`,
+          applicationCategory: "family_group",
+          isFamilyHead: false,
+          familyGroupId,
+          familyHeadEntryNumber: headEntryNumber,
+          familyHeadName: name.trim(),
+          familyRelation: m.relation || "পরিবার সদস্য",
+          familyMemberCount: totalMemberCount,
+          groupMembersSummary: memberSummary,
+          createdBy: authUser?.userId ? (authUser.userId as unknown as string) : undefined,
+          createdByName: authUser?.name || "",
+        });
+        createdMembers.push(memberEntry);
+      }
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: `ফ্যামিলি পাসপোর্ট প্যাকেজ সফলভাবে যুক্ত হয়েছে (${totalMemberCount} জন সদস্য)`,
+          entry: primaryEntry,
+          membersCount: createdMembers.length,
+          familyGroupId,
+        },
+        { status: 201 }
+      );
     }
 
-    // Ensure uniqueness in case of concurrent requests or gaps
-    let entryNumber = `PS-${String(nextNum).padStart(3, "0")}`;
-    while (await PassportEntry.exists({ entryNumber })) {
-      nextNum += 1;
-      entryNumber = `PS-${String(nextNum).padStart(3, "0")}`;
-    }
-
+    // Default: Single / Individual Passport Entry
+    const entryNumber = await getNextEntryNumber();
     const newEntry = await PassportEntry.create({
       entryNumber,
       name: name.trim(),
@@ -181,7 +311,7 @@ export async function POST(request: Request) {
       nid: nid.trim(),
       birthDate: birthDate.trim(),
       passportType: passportType || "e_passport_10y_48p",
-      receivedDate: receivedDate ? receivedDate.trim() : new Date().toISOString().split("T")[0],
+      receivedDate: effectiveReceivedDate,
       totalAmount: parsedTotal,
       paidAmount: parsedPaid,
       dueAmount: calculatedDue,
@@ -189,6 +319,14 @@ export async function POST(request: Request) {
       status: status || "submitted",
       deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
       notes: notes || "",
+      applicationCategory: "individual",
+      isFamilyHead: false,
+      familyGroupId: "",
+      familyHeadEntryNumber: "",
+      familyHeadName: "",
+      familyRelation: "",
+      familyMemberCount: 1,
+      groupMembersSummary: "",
       createdBy: authUser?.userId ? (authUser.userId as unknown as string) : undefined,
       createdByName: authUser?.name || "",
     });

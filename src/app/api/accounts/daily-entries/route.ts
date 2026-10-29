@@ -92,6 +92,10 @@ export async function GET(request: Request) {
           { entryNumber: searchRegex },
           { onlineTrackId: searchRegex },
           { notes: searchRegex },
+          { familyGroupId: searchRegex },
+          { familyHeadName: searchRegex },
+          { familyHeadEntryNumber: searchRegex },
+          { groupMembersSummary: searchRegex },
         ];
       }
       passportEntries = await PassportEntry.find(pQuery)
@@ -221,10 +225,20 @@ export async function GET(request: Request) {
         referenceId: p.entryNumber,
         moduleType: "passport",
         moduleLabel: "পাসপোর্ট",
-        applicantName: p.name,
+        applicantName:
+          p.applicationCategory === "family_group"
+            ? p.isFamilyHead
+              ? `${p.name} (👨‍👩‍👧‍👦 ফ্যামিলি প্যাকেজ - ${p.familyMemberCount || 1} জন)`
+              : `${p.name} [ফ্যামিলি সদস্য - বিল প্রধান: ${p.familyHeadName || "পরিবার প্রধান"}]`
+            : p.name,
         phone: p.mobile,
         serviceTitle: p.passportType || "ই-পাসপোর্ট আবেদন",
-        category: "ফাইল বুকিং ও প্রাথমিক জমা",
+        category:
+          p.applicationCategory === "family_group"
+            ? p.isFamilyHead
+              ? "ফ্যামিলি প্যাকেজ বুকিং ও জমা"
+              : "ফ্যামিলি প্যাকেজ অন্তর্ভুক্ত"
+            : "ফাইল বুকিং ও প্রাথমিক জমা",
         totalAmount: total,
         inAmount: paid,
         outAmount: 0,
@@ -261,10 +275,20 @@ export async function GET(request: Request) {
         referenceId: v.trackingId,
         moduleType: "visa",
         moduleLabel: "ভিসা",
-        applicantName: v.applicantName,
+        applicantName:
+          v.applicationCategory === "family_group"
+            ? v.isFamilyHead
+              ? `${v.applicantName} (👨‍👩‍👧‍👦 ফ্যামিলি প্যাকেজ - ${v.familyMemberCount || 1} জন)`
+              : `${v.applicantName} [ফ্যামিলি সদস্য - বিল প্রধান: ${v.familyHeadName || "পরিবার প্রধান"}]`
+            : v.applicantName,
         phone: v.phone,
         serviceTitle: `${country} (${sType})`,
-        category: "ফাইল বুকিং ও প্রাথমিক জমা",
+        category:
+          v.applicationCategory === "family_group"
+            ? v.isFamilyHead
+              ? "ফ্যামিলি প্যাকেজ বুকিং ও জমা"
+              : "ফ্যামিলি প্যাকেজ অন্তর্ভুক্ত"
+            : "ফাইল বুকিং ও প্রাথমিক জমা",
         totalAmount: total,
         inAmount: paid,
         outAmount: 0,

@@ -94,7 +94,14 @@ export async function POST(request: Request) {
     // If client is paying money (Collection), update the linked file's paid & due amounts!
     if (type === "collection") {
       if (resolvedModuleType === "passport" || refUpper.startsWith("PS-")) {
-        const passportDoc = await PassportEntry.findOne({ entryNumber: refUpper });
+        let passportDoc = await PassportEntry.findOne({ entryNumber: refUpper });
+        // If this is a family member (not head), redirect collection to family head document
+        if (passportDoc && passportDoc.applicationCategory === "family_group" && !passportDoc.isFamilyHead && passportDoc.familyGroupId) {
+          const headDoc = await PassportEntry.findOne({ familyGroupId: passportDoc.familyGroupId, isFamilyHead: true });
+          if (headDoc) {
+            passportDoc = headDoc;
+          }
+        }
         if (passportDoc) {
           relatedId = passportDoc._id;
           const newPaid = (passportDoc.paidAmount || 0) + numAmount;
@@ -106,7 +113,14 @@ export async function POST(request: Request) {
           await passportDoc.save();
         }
       } else if (resolvedModuleType === "visa" || refUpper.startsWith("VS-")) {
-        const visaDoc = await VisaApplication.findOne({ trackingId: refUpper });
+        let visaDoc = await VisaApplication.findOne({ trackingId: refUpper });
+        // If this is a family member (not head), redirect collection to family head document
+        if (visaDoc && visaDoc.applicationCategory === "family_group" && !visaDoc.isFamilyHead && visaDoc.familyGroupId) {
+          const headDoc = await VisaApplication.findOne({ familyGroupId: visaDoc.familyGroupId, isFamilyHead: true });
+          if (headDoc) {
+            visaDoc = headDoc;
+          }
+        }
         if (visaDoc) {
           relatedId = visaDoc._id;
           const currentTotal = Number(visaDoc.totalAmount ?? visaDoc.feeAmount) || 0;
@@ -118,6 +132,14 @@ export async function POST(request: Request) {
             visaDoc.updatedByName = authUser.name;
           }
           await visaDoc.save();
+
+          // Sync feeStatus to all family members so their status immediately reflects paid/partial
+          if (visaDoc.familyGroupId) {
+            await VisaApplication.updateMany(
+              { familyGroupId: visaDoc.familyGroupId, isFamilyHead: false },
+              { feeStatus: visaDoc.feeStatus }
+            );
+          }
         }
       }
     } else {
@@ -184,7 +206,13 @@ export async function DELETE(request: Request) {
     // If it was a collection, revert the paid amount on the linked passport or visa record
     if (tx.type === "collection") {
       if (tx.moduleType === "passport" || tx.referenceId.startsWith("PS-")) {
-        const passportDoc = await PassportEntry.findOne({ entryNumber: tx.referenceId });
+        let passportDoc = await PassportEntry.findOne({ entryNumber: tx.referenceId });
+        if (passportDoc && passportDoc.applicationCategory === "family_group" && !passportDoc.isFamilyHead && passportDoc.familyGroupId) {
+          const headDoc = await PassportEntry.findOne({ familyGroupId: passportDoc.familyGroupId, isFamilyHead: true });
+          if (headDoc) {
+            passportDoc = headDoc;
+          }
+        }
         if (passportDoc) {
           const revertedPaid = Math.max(0, (passportDoc.paidAmount || 0) - tx.amount);
           passportDoc.paidAmount = revertedPaid;

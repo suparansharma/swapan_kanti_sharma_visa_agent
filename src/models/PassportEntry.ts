@@ -21,6 +21,14 @@ export interface IPassportEntry extends Document {
   receivedDate?: string; // রিসিভ তারিখ / Received Date
   deliveryDate?: Date;
   notes?: string;
+  applicationCategory?: "individual" | "family_group"; // আবেদনের ধরন
+  isFamilyHead?: boolean; // পরিবার প্রধান কিনা
+  familyGroupId?: string; // ফ্যামিলি গ্রুপ আইডি (e.g. FAM-PS-001)
+  familyHeadEntryNumber?: string; // পরিবার প্রধানের এন্ট্রি নম্বর (e.g. PS-001)
+  familyHeadName?: string; // পরিবার প্রধানের নাম
+  familyRelation?: string; // সম্পর্ক (যেমন: প্রধান, স্ত্রী, সন্তান)
+  familyMemberCount?: number; // ফ্যামিলি প্যাকেজে মোট সদস্য সংখ্যা
+  groupMembersSummary?: string; // সদস্য তালিকা সংক্ষেপ
   createdBy?: mongoose.Types.ObjectId;
   createdByName?: string;
   updatedBy?: mongoose.Types.ObjectId;
@@ -110,6 +118,44 @@ const PassportEntrySchema = new Schema<IPassportEntry>(
       type: String,
       default: "",
     },
+    applicationCategory: {
+      type: String,
+      enum: ["individual", "family_group"],
+      default: "individual",
+    },
+    isFamilyHead: {
+      type: Boolean,
+      default: false,
+    },
+    familyGroupId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    familyHeadEntryNumber: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: "",
+    },
+    familyHeadName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    familyRelation: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    familyMemberCount: {
+      type: Number,
+      default: 1,
+    },
+    groupMembersSummary: {
+      type: String,
+      default: "",
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -142,6 +188,8 @@ PassportEntrySchema.pre("save", function () {
 PassportEntrySchema.index({ entryNumber: 1 });
 PassportEntrySchema.index({ nid: 1 });
 PassportEntrySchema.index({ mobile: 1 });
+PassportEntrySchema.index({ familyGroupId: 1 });
+PassportEntrySchema.index({ familyHeadEntryNumber: 1 });
 
 const PassportEntry: Model<IPassportEntry> =
   mongoose.models.PassportEntry ||

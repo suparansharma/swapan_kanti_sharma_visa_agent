@@ -10,6 +10,7 @@ export async function GET(request: Request) {
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
     const serviceType = searchParams.get("serviceType") || "all";
+    const category = searchParams.get("category") || "all";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "10", 10)));
     const skip = (page - 1) * limit;
@@ -22,6 +23,11 @@ export async function GET(request: Request) {
     }
     if (serviceType !== "all") {
       query.serviceType = serviceType;
+    }
+    if (category === "individual") {
+      query.applicationCategory = { $ne: "family_group" };
+    } else if (category === "family_group") {
+      query.applicationCategory = "family_group";
     }
     if (search.trim()) {
       const regex = new RegExp(search.trim(), "i");

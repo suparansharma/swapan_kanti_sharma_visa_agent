@@ -60,11 +60,13 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
   // Passport specific filters
   const [passportStatus, setPassportStatus] = useState("all");
   const [passportType, setPassportType] = useState("all");
+  const [passportCategory, setPassportCategory] = useState("all"); // 'all' | 'single' | 'family_group'
 
   // Visa specific filters
   const [visaStatus, setVisaStatus] = useState("all");
   const [destinationCountry, setDestinationCountry] = useState("all");
   const [serviceType, setServiceType] = useState("all");
+  const [visaCategory, setVisaCategory] = useState("all"); // 'all' | 'single' | 'family_group'
 
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [passportList, setPassportList] = useState<any[]>([]);
@@ -101,10 +103,12 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
       if (initialSection === "passport") {
         if (passportStatus !== "all") params.append("status", passportStatus);
         if (passportType !== "all") params.append("passportType", passportType);
+        if (passportCategory !== "all") params.append("category", passportCategory);
       } else if (initialSection === "visa") {
         if (visaStatus !== "all") params.append("status", visaStatus);
         if (destinationCountry !== "all") params.append("destinationCountry", destinationCountry);
         if (serviceType !== "all") params.append("serviceType", serviceType);
+        if (visaCategory !== "all") params.append("category", visaCategory);
       }
 
       const res = await fetch(`/api/reports?${params.toString()}`);
@@ -130,9 +134,11 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
     endDate,
     passportStatus,
     passportType,
+    passportCategory,
     visaStatus,
     destinationCountry,
     serviceType,
+    visaCategory,
   ]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -140,8 +146,19 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
     fetchReports();
   };
 
-  const handlePrint = () => {
+  const handlePrint = (isPdf = false) => {
+    const originalTitle = document.title;
+    const dateStr = new Date().toISOString().split("T")[0];
+    document.title =
+      initialSection === "visa"
+        ? `ভিসা_ফাইল_ও_আর্থিক_লেনদেন_রিপোর্ট_${dateStr}`
+        : initialSection === "passport"
+        ? `পাসপোর্ট_হিসাব_ও_স্টেটমেন্ট_রিপোর্ট_${dateStr}`
+        : `সকল_মডিউলের_সমন্বিত_রিপোর্ট_${dateStr}`;
     window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1000);
   };
 
   // CSV Export
@@ -149,20 +166,42 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
     let rows: string[][] = [];
     if (initialSection === "passport" || initialSection === "all") {
       rows.push(["--- PASSPORT ENTRIES REPORT ---"]);
-      rows.push(["Entry No", "Name", "Mobile", "NID", "Online Track ID", "Passport Type", "Total (BDT)", "Paid (BDT)", "Due (BDT)", "Status", "Date"]);
+      rows.push([
+        "Entry No",
+        "Applicant",
+        "Category / Billing Note",
+        "Mobile",
+        "NID",
+        "Passport Type",
+        "Online Track ID",
+        "Total (BDT)",
+        "Paid (BDT)",
+        "Due (BDT)",
+        "Status",
+        "Receive Date",
+      ]);
       passportList.forEach((p) => {
+        const isFam = p.applicationCategory === "family_group";
+        const isHead = isFam && p.isFamilyHead;
+        const isMember = isFam && !p.isFamilyHead;
+        const catNote = isMember
+          ? `Family Member (Head: ${p.familyHeadName || ""} ${p.familyHeadEntryNumber || ""})`
+          : isHead
+          ? `Family Head (${p.familyMemberCount || 1} members)`
+          : "Single";
         rows.push([
           p.entryNumber,
           `"${p.name}"`,
+          `"${catNote}"`,
           p.mobile,
           p.nid,
-          p.onlineTrackId || "N/A",
           `"${p.passportType}"`,
-          String(p.totalAmount || 0),
-          String(p.paidAmount || 0),
-          String(p.dueAmount || 0),
+          p.onlineTrackId || "N/A",
+          isMember ? "Joint Bill" : String(p.totalAmount || 0),
+          isMember ? "In Joint Bill" : String(p.paidAmount || 0),
+          isMember ? "Head Responsibility" : String(p.dueAmount || 0),
           p.status,
-          new Date(p.createdAt).toLocaleDateString(),
+          formatReceivedDate(p.receivedDate, p.createdAt),
         ]);
       });
     }
@@ -170,23 +209,48 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
     if (initialSection === "visa" || initialSection === "all") {
       if (initialSection === "all") rows.push([]);
       rows.push(["--- VISA APPLICATIONS REPORT ---"]);
-      rows.push(["Tracking ID", "Applicant", "Passport No", "Phone", "Country", "Service Type", "Total (BDT)", "Paid (BDT)", "Due (BDT)", "Status", "Date"]);
+      rows.push([
+        "Tracking ID",
+        "Applicant",
+        "Category / Billing Note",
+        "Passport No",
+        "Phone",
+        "Service Type",
+        "Total (BDT)",
+        "Paid (BDT)",
+        "Due (BDT)",
+        "Status",
+        "Receive Date"
+      ]);
       visaList.forEach((v) => {
         const total = Number(v.totalAmount ?? v.feeAmount) || 0;
         const paid = Number(v.paidAmount ?? (v.feeStatus === "paid" ? total : 0)) || 0;
         const due = Number(v.dueAmount ?? Math.max(0, total - paid)) || 0;
+        const isFam = v.applicationCategory === "family_group";
+        const catNote = isFam
+          ? v.isFamilyHead
+            ? `ফ্যামিলি প্যাকেজ প্রধান (${v.familyMemberCount || 1} জন)`
+            : `ফ্যামিলি সদস্য (বিল প্রধান: ${v.familyHeadName || ''} - ${v.familyHeadTrackingId || ''})`
+          : "একক আবেদন (Single)";
+
+        const totalStr = isFam && !v.isFamilyHead
+          ? `যৌথ প্যাকেজ (${v.familyHeadTrackingId || ''} বিলে অন্তর্ভুক্ত)`
+          : String(total);
+        const paidStr = isFam && !v.isFamilyHead ? `প্রধানের বিলে পরিশোধিত` : String(paid);
+        const dueStr = isFam && !v.isFamilyHead ? `প্রধানের বিলে অন্তর্ভুক্ত` : String(due);
+
         rows.push([
           v.trackingId,
           `"${v.applicantName}"`,
+          `"${catNote}"`,
           v.passportNumber,
           v.phone,
-          v.destinationCountry,
           v.serviceType,
-          String(total),
-          String(paid),
-          String(due),
+          totalStr,
+          paidStr,
+          dueStr,
           v.status,
-          new Date(v.createdAt).toLocaleDateString(),
+          v.receivedDate || (v.createdAt ? new Date(v.createdAt).toLocaleDateString() : "—"),
         ]);
       });
     }
@@ -202,6 +266,20 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
     document.body.removeChild(link);
   };
 
+  const formatReceivedDate = (dateVal?: string, fallback?: string | Date) => {
+    const target = dateVal || fallback;
+    if (!target) return "—";
+    try {
+      if (typeof target === "string" && /^\d{4}-\d{2}-\d{2}$/.test(target)) {
+        const [y, m, d] = target.split("-");
+        return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString("bn-BD");
+      }
+      return new Date(target).toLocaleDateString("bn-BD");
+    } catch {
+      return String(target);
+    }
+  };
+
   const getPassportTypeLabel = (val: string) => {
     const found = PASSPORT_TYPE_OPTIONS.find((o) => o.value === val);
     const raw = found ? found.label : val;
@@ -209,61 +287,36 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
   };
 
   const getStatusBadge = (s: string) => {
-    if (s === "police_verification") {
-      return { label: "পুলিশ ভেরিফিকেশন", bg: "rgba(245, 158, 11, 0.15)", color: "#fbbf24" };
+    switch (s) {
+      case "submitted":
+        return { label: "আবেদন জমা", bg: "rgba(99, 102, 241, 0.1)", color: "#4f46e5", border: "rgba(99, 102, 241, 0.3)" };
+      case "biometric_pending":
+        return { label: "বায়োমেট্রিক বাকি", bg: "rgba(236, 72, 153, 0.1)", color: "#db2777", border: "rgba(236, 72, 153, 0.3)" };
+      case "police_verification":
+        return { label: "পুলিশ ভেরিফিকেশন", bg: "rgba(245, 158, 11, 0.12)", color: "#d97706", border: "rgba(245, 158, 11, 0.35)" };
+      case "ready_for_pickup":
+        return { label: "পাসপোর্ট রেডি", bg: "rgba(16, 185, 129, 0.12)", color: "#059669", border: "rgba(16, 185, 129, 0.35)" };
+      case "delivered":
+        return { label: "ডেলিভারি সম্পন্ন", bg: "rgba(59, 130, 246, 0.12)", color: "#2563eb", border: "rgba(59, 130, 246, 0.35)" };
+      default:
+        return getVisaStatusBadge(s);
     }
-    return getVisaStatusBadge(s);
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {/* OFFICIAL LETTERHEAD FOR PRINT ONLY */}
-      <div
-        className="print-header"
-        style={{
-          display: "none",
-          paddingBottom: "16px",
-          borderBottom: "2px solid #0f172a",
-          marginBottom: "16px",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <h1 style={{ fontSize: "20pt", fontWeight: 900, color: "#0f172a", margin: 0, textTransform: "uppercase" }}>
-              SHARMA TRAVELS & VISA AGENCY
-            </h1>
-            <p style={{ fontSize: "10pt", color: "#334155", margin: "4px 0 0 0" }}>
-              সরকারি ও আন্তর্জাতিক ভিসা প্রসেসিং, পাসপোর্ট এন্ট্রি ও এম্বাসি কনসালটেন্সি সার্ভিস
-            </p>
-            <p style={{ fontSize: "9pt", color: "#64748b", margin: "2px 0 0 0" }}>
-              ফোন: +880 1700-000000 | ওয়েবসাইট: sharmavisa.com | ঢাকা, বাংলাদেশ
-            </p>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div
-              style={{
-                display: "inline-block",
-                padding: "4px 10px",
-                border: "1.5px solid #0f172a",
-                fontWeight: 800,
-                fontSize: "10pt",
-                textTransform: "uppercase",
-              }}
-            >
-              {initialSection === "passport" && "PASSPORT OFFICIAL STATEMENT"}
-              {initialSection === "visa" && "VISA OFFICIAL STATEMENT"}
-              {initialSection === "all" && "AGENCY FINANCIAL STATEMENT"}
-            </div>
-            <div style={{ fontSize: "8.5pt", color: "#475569", marginTop: "6px" }}>
-              প্রিন্টের তারিখ: {new Date().toLocaleDateString("bn-BD")}
-            </div>
-            {startDate || endDate ? (
-              <div style={{ fontSize: "8pt", color: "#475569" }}>
-                মেয়াদ: {startDate || "শুরু"} হতে {endDate || "বর্তমান"}
-              </div>
-            ) : null}
-          </div>
-        </div>
+      {/* OFFICIAL LETTERHEAD FOR PRINT ONLY (FIRST PAGE ONLY) */}
+      <div className="print-first-page-header">
+        <h1 className="print-org-title">Sharma Pharmacy</h1>
+        <div className="print-org-name">Swapan Kanti Sharma</div>
+        <div className="print-org-address">Amlapara, Kushtia</div>
+        <div className="print-org-contact">01715144329 | swapankantisharma7@gmail.com</div>
+        <div className="print-header-line"></div>
+        <h2 className="print-doc-title">
+          {initialSection === "visa" && "ভিসা ফাইল ও আর্থিক লেনদেন রিপোর্ট"}
+          {initialSection === "passport" && "পাসপোর্ট হিসাব ও স্টেটমেন্ট রিপোর্ট"}
+          {initialSection === "all" && "সকল মডিউলের সমন্বিত রিপোর্ট"}
+        </h2>
       </div>
 
       {/* HEADER SECTION (SCREEN VIEW) */}
@@ -340,7 +393,16 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
             <span>CSV এক্সপোর্ট</span>
           </button>
           <button
-            onClick={handlePrint}
+            onClick={() => handlePrint(true)}
+            className="btn-secondary btn-sm"
+            style={{ display: "flex", alignItems: "center", gap: "6px" }}
+            title="PDF ডাউনলোড করুন"
+          >
+            <FileText size={14} />
+            <span>PDF ডাউনলোড</span>
+          </button>
+          <button
+            onClick={() => handlePrint(false)}
             className="btn-primary btn-sm"
             style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px" }}
             title="প্রিন্ট করুন"
@@ -428,6 +490,23 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
           {/* PASSPORT SPECIFIC FILTERS */}
           {initialSection === "passport" && (
             <>
+              {/* Passport Application Category Filter */}
+              <div style={{ flex: "1 1 180px" }}>
+                <label style={{ display: "block", fontSize: "0.74rem", color: "var(--text-muted)", marginBottom: "4px" }}>
+                  আবেদনের ধরন (ক্যাটাগরি)
+                </label>
+                <select
+                  value={passportCategory}
+                  onChange={(e) => setPassportCategory(e.target.value)}
+                  className="input-field"
+                  style={{ height: "38px", fontSize: "0.85rem", padding: "0 10px" }}
+                >
+                  <option value="all">সকল আবেদন (একক ও ফ্যামিলি)</option>
+                  <option value="single">👤 একক আবেদন (Single)</option>
+                  <option value="family_group">👨‍👩‍👧‍👦 ফ্যামিলি / গ্রুপ আবেদন</option>
+                </select>
+              </div>
+
               {/* Passport Type Filter */}
               <div style={{ flex: "1 1 220px" }}>
                 <label style={{ display: "block", fontSize: "0.74rem", color: "var(--text-muted)", marginBottom: "4px" }}>
@@ -519,6 +598,23 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
                 </select>
               </div>
 
+              {/* Visa Application Category Filter */}
+              <div style={{ flex: "1 1 180px" }}>
+                <label style={{ display: "block", fontSize: "0.74rem", color: "var(--text-muted)", marginBottom: "4px" }}>
+                  আবেদনের ধরন (ক্যাটাগরি)
+                </label>
+                <select
+                  value={visaCategory}
+                  onChange={(e) => setVisaCategory(e.target.value)}
+                  className="input-field"
+                  style={{ height: "38px", fontSize: "0.85rem", padding: "0 10px" }}
+                >
+                  <option value="all">সকল আবেদন (একক ও ফ্যামিলি)</option>
+                  <option value="single">👤 একক আবেদন (Single)</option>
+                  <option value="family_group">👨‍👩‍👧‍👦 ফ্যামিলি / গ্রুপ আবেদন</option>
+                </select>
+              </div>
+
               {/* Visa Status Filter */}
               <div style={{ flex: "1 1 160px" }}>
                 <label style={{ display: "block", fontSize: "0.74rem", color: "var(--text-muted)", marginBottom: "4px" }}>
@@ -600,7 +696,7 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
       {/* SUMMARY STAT CARDS */}
       {summary && (
         <div
-          className="print-summary-grid"
+          className="print-summary-grid no-print"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
@@ -764,6 +860,7 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
       {(initialSection === "passport" || initialSection === "all") && (
         <div className="glass-panel" style={{ overflow: "hidden" }}>
           <div
+            className="no-print"
             style={{
               padding: "16px 20px",
               borderBottom: "1px solid var(--border-subtle)",
@@ -787,21 +884,37 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
             )}
           </div>
 
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
+          <div className="report-table-wrapper" style={{ overflowX: "auto" }}>
+            <table className="report-print-table" style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
+              <colgroup>
+                <col className="print-col-p-entry" style={{ width: "7%" }} />
+                <col className="print-col-p-name" style={{ width: "19%" }} />
+                <col className="print-col-p-phone" style={{ width: "9%" }} />
+                <col className="print-col-p-nid" style={{ width: "10%" }} />
+                <col className="print-col-p-type" style={{ width: "12%" }} />
+                <col className="print-col-p-trackid" style={{ width: "9%" }} />
+                <col className="print-col-p-total" style={{ width: "8%" }} />
+                <col className="print-col-p-paid" style={{ width: "7%" }} />
+                <col className="print-col-p-due" style={{ width: "7%" }} />
+                <col className="print-col-p-status" style={{ width: "6%" }} />
+                <col className="print-col-p-date" style={{ width: "6%" }} />
+              </colgroup>
               <thead>
                 <tr style={{ background: "rgba(255, 255, 255, 0.03)", borderBottom: "1px solid var(--border-subtle)" }}>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>এন্ট্রি নং</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>গ্রাহকের নাম</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>মোবাইল</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>NID ও জন্মতারিখ</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>পাসপোর্ট ধরন</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>Online Track ID</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>চুক্তি টাকা</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>জমা টাকা</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>বকেয়া টাকা</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>স্ট্যাটাস</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>তারিখ</th>
+                  <th className="print-col-p-entry" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>এন্ট্রি নং</th>
+                  <th className="print-col-p-name" style={{ padding: "10px 6px", color: "var(--text-muted)" }}>
+                    <span className="no-print">আবেদনকারীর নাম ও ধরন</span>
+                    <span className="print-only">আবেদনকারীর নাম</span>
+                  </th>
+                  <th className="print-col-p-phone" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>মোবাইল</th>
+                  <th className="print-col-p-nid" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>NID ও জন্মতারিখ</th>
+                  <th className="print-col-p-type" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>পাসপোর্ট ধরন</th>
+                  <th className="print-col-p-trackid" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>Online Track ID</th>
+                  <th className="print-col-p-total" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>চুক্তি টাকা</th>
+                  <th className="print-col-p-paid" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>জমা টাকা</th>
+                  <th className="print-col-p-due" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>বকেয়া টাকা</th>
+                  <th className="print-col-p-status" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>স্ট্যাটাস</th>
+                  <th className="print-col-p-date" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>রিসিভ তারিখ</th>
                 </tr>
               </thead>
               <tbody>
@@ -812,64 +925,259 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
                     </td>
                   </tr>
                 ) : (
-                  passportList.map((p) => (
-                    <tr key={p._id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                      <td style={{ padding: "12px 16px", fontWeight: 700, color: "#38bdf8" }}>{p.entryNumber}</td>
-                      <td style={{ padding: "12px 16px", fontWeight: 600 }}>{p.name}</td>
-                      <td style={{ padding: "12px 16px", color: "var(--text-secondary)" }}>{p.mobile}</td>
-                      <td style={{ padding: "12px 16px" }}>
-                        <div style={{ fontFamily: "monospace", color: "#a5b4fc", fontSize: "0.8rem" }}>{p.nid}</div>
-                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{p.birthDate}</div>
-                      </td>
-                      <td style={{ padding: "12px 16px", maxWidth: "220px" }}>
-                        <span style={{ fontSize: "0.76rem", color: "var(--text-secondary)" }}>
+                  passportList.map((p) => {
+                    const total = Number(p.totalAmount) || 0;
+                    const paid = Number(p.paidAmount) || 0;
+                    const due = Number(p.dueAmount) || 0;
+                    const isFam = p.applicationCategory === "family_group";
+                    const isHead = isFam && p.isFamilyHead;
+                    const isMember = isFam && !p.isFamilyHead;
+
+                    return (
+                      <tr key={p._id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                        {/* 1. Entry No */}
+                        <td style={{ padding: "8px 4px", fontWeight: 700, color: "#38bdf8", verticalAlign: "middle" }} className="print-td-track">
+                          {p.entryNumber}
+                        </td>
+
+                        {/* 2. Applicant Name & Category Badges */}
+                        <td style={{ padding: "8px 6px", verticalAlign: "middle" }} className="print-td-name">
+                          <div style={{ fontWeight: 700, color: "var(--text-main)", fontSize: "0.86rem" }}>
+                            {p.name}
+                          </div>
+                          {/* Screen-only category & relation badges */}
+                          <div className="no-print">
+                            {isFam ? (
+                              <div style={{ marginTop: "3px" }}>
+                                {isHead ? (
+                                  <span
+                                    className="print-category-pill"
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "3px",
+                                      fontSize: "0.7rem",
+                                      padding: "2px 8px",
+                                      borderRadius: "9999px",
+                                      background: "rgba(99, 102, 241, 0.12)",
+                                      color: "#4f46e5",
+                                      border: "1px solid rgba(99, 102, 241, 0.25)",
+                                      fontWeight: 700,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    👨‍👩‍👧‍👦 ফ্যামিলি প্যাকেজ ({p.familyMemberCount || 1} জন) • প্রধান বিল
+                                  </span>
+                                ) : (
+                                  <div>
+                                    <span
+                                      className="print-category-pill"
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "3px",
+                                        fontSize: "0.7rem",
+                                        padding: "2px 8px",
+                                        borderRadius: "9999px",
+                                        background: "rgba(14, 165, 233, 0.12)",
+                                        color: "#0284c7",
+                                        border: "1px solid rgba(14, 165, 233, 0.25)",
+                                        fontWeight: 600,
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      🔗 {p.familyRelation || "ফ্যামিলি সদস্য"}
+                                    </span>
+                                    <div style={{ fontSize: "0.71rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                      বিল দায়িত্ব: <b style={{ color: "#4f46e5" }}>{p.familyHeadName || "প্যাকেজ প্রধান"}</b> ({p.familyHeadEntryNumber})
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ marginTop: "3px" }}>
+                                <span
+                                  className="print-category-pill"
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "3px",
+                                    fontSize: "0.7rem",
+                                    padding: "2px 8px",
+                                    borderRadius: "9999px",
+                                    background: "rgba(16, 185, 129, 0.12)",
+                                    color: "#059669",
+                                    border: "1px solid rgba(16, 185, 129, 0.25)",
+                                    fontWeight: 700,
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  👤 একক আবেদন (Single)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 3. Mobile */}
+                        <td style={{ padding: "8px 4px", color: "var(--text-secondary)", verticalAlign: "middle" }} className="print-td-phone">
+                          {p.mobile}
+                        </td>
+
+                        {/* 4. NID & Birthdate */}
+                        <td style={{ padding: "8px 4px", verticalAlign: "middle" }} className="print-td-mono">
+                          <div style={{ fontFamily: "monospace", color: "#a5b4fc", fontSize: "0.8rem", fontWeight: 700 }}>
+                            {p.nid}
+                          </div>
+                          <div style={{ fontSize: "0.71rem", color: "var(--text-muted)", marginTop: "1px" }} className="print-note">
+                            {p.birthDate ? `জন্ম: ${p.birthDate}` : ""}
+                          </div>
+                        </td>
+
+                        {/* 5. Passport Type */}
+                        <td style={{ padding: "8px 4px", fontSize: "0.78rem", color: "var(--text-secondary)", verticalAlign: "middle" }} className="print-td-service">
                           {getPassportTypeLabel(p.passportType)}
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px 16px" }}>
-                        {p.onlineTrackId ? (
+                        </td>
+
+                        {/* 6. Online Track ID */}
+                        <td style={{ padding: "8px 4px", verticalAlign: "middle" }} className="print-td-mono">
+                          {p.onlineTrackId ? (
+                            <span
+                              style={{
+                                fontFamily: "monospace",
+                                fontWeight: 700,
+                                color: "#38bdf8",
+                                background: "rgba(56, 189, 248, 0.1)",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                              }}
+                            >
+                              {p.onlineTrackId}
+                            </span>
+                          ) : (
+                            <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>—</span>
+                          )}
+                        </td>
+
+                        {/* 7. চুক্তি টাকা */}
+                        <td style={{ padding: "8px 4px", verticalAlign: "middle" }} className="print-td-num">
+                          {isMember ? (
+                            <div>
+                              <span
+                                className="print-category-pill"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  padding: "2px 7px",
+                                  borderRadius: "6px",
+                                  background: "rgba(14, 165, 233, 0.1)",
+                                  color: "#0284c7",
+                                  fontSize: "0.74rem",
+                                  fontWeight: 700,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                <span className="no-print-emoji">🤝 </span>যৌথ বিলে
+                              </span>
+                              <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "2px" }} className="print-note">
+                                {p.familyHeadEntryNumber ? `${p.familyHeadEntryNumber} বিলে` : "প্রধানের চুক্তিতে"}
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: "0.88rem", color: "var(--text-main)" }} className="print-amount">
+                                <span className="no-print">৳ </span>{total.toLocaleString("en-IN")}
+                              </div>
+                              {isHead ? (
+                                <div style={{ fontSize: "0.68rem", color: "#4f46e5", fontWeight: 700, marginTop: "2px" }} className="print-note">
+                                  <span className="no-print-emoji">👨‍👩‍👧‍👦 </span>{p.familyMemberCount || 1} জনের বিল
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "2px" }} className="print-note">
+                                  একক চুক্তি
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 8. জমা টাকা */}
+                        <td style={{ padding: "8px 4px", verticalAlign: "middle" }} className="print-td-num">
+                          {isMember ? (
+                            <div style={{ fontSize: "0.73rem", color: "var(--text-muted)", fontStyle: "italic" }} className="print-note">
+                              {p.familyHeadEntryNumber ? `${p.familyHeadEntryNumber} তে জমা` : "যৌথ জমার অন্তর্ভুক্ত"}
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ fontWeight: 800, color: "#059669", fontSize: "0.88rem" }} className="print-amount">
+                                <span className="no-print">৳ </span>{paid.toLocaleString("en-IN")}
+                              </div>
+                              {isHead && (
+                                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "2px" }} className="print-note">
+                                  প্যাকেজ জমা
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 9. বকেয়া টাকা */}
+                        <td style={{ padding: "8px 4px", verticalAlign: "middle" }} className="print-td-num">
+                          {isMember ? (
+                            <div style={{ fontSize: "0.73rem", color: "var(--text-muted)", fontStyle: "italic" }} className="print-note">
+                              {p.familyHeadEntryNumber ? `বিল প্রধানের দায়` : "যৌথ বিলে"}
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ fontWeight: 800, color: due > 0 ? "#d97706" : "#059669", fontSize: "0.88rem" }} className="print-amount">
+                                <span className="no-print">৳ </span>{due.toLocaleString("en-IN")}
+                              </div>
+                              {isHead ? (
+                                <div style={{ fontSize: "0.68rem", color: due > 0 ? "#b45309" : "#059669", fontWeight: 700, marginTop: "2px" }} className="print-note">
+                                  {due > 0 ? "প্যাকেজ বকেয়া" : "পরিশোধিত"}
+                                </div>
+                              ) : due === 0 ? (
+                                <div style={{ fontSize: "0.68rem", color: "#059669", marginTop: "2px" }} className="print-note">
+                                  পরিশোধিত
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 10. স্ট্যাটাস */}
+                        <td style={{ padding: "8px 4px", verticalAlign: "middle" }} className="print-td-status">
                           <span
+                            className="print-status-text"
                             style={{
-                              fontFamily: "monospace",
-                              fontWeight: 700,
-                              color: "#38bdf8",
-                              background: "rgba(56, 189, 248, 0.1)",
-                              padding: "2px 6px",
+                              padding: "3px 8px",
                               borderRadius: "4px",
+                              fontSize: "0.74rem",
+                              fontWeight: 700,
+                              background: getStatusBadge(p.status).bg,
+                              color: getStatusBadge(p.status).color,
+                              whiteSpace: "nowrap",
                             }}
                           >
-                            {p.onlineTrackId}
+                            {getStatusBadge(p.status).label}
                           </span>
-                        ) : (
-                          <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>—</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "12px 16px", fontWeight: 700 }}>৳ {Number(p.totalAmount).toLocaleString("en-IN")}</td>
-                      <td style={{ padding: "12px 16px", fontWeight: 700, color: "#34d399" }}>৳ {Number(p.paidAmount).toLocaleString("en-IN")}</td>
-                      <td style={{ padding: "12px 16px", fontWeight: 700, color: p.dueAmount > 0 ? "#fbbf24" : "#34d399" }}>
-                        ৳ {Number(p.dueAmount).toLocaleString("en-IN")}
-                      </td>
-                      <td style={{ padding: "12px 16px" }}>
-                        <span
-                          style={{
-                            padding: "3px 8px",
-                            borderRadius: "4px",
-                            fontSize: "0.74rem",
-                            fontWeight: 700,
-                            background: getStatusBadge(p.status).bg,
-                            color: getStatusBadge(p.status).color,
-                          }}
-                        >
-                          {getStatusBadge(p.status).label}
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px 16px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                        {new Date(p.createdAt).toLocaleDateString("bn-BD")}
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+
+                        {/* 11. Receive Date */}
+                        <td style={{ padding: "8px 4px", fontSize: "0.75rem", color: "var(--text-muted)", verticalAlign: "middle" }} className="print-td-date">
+                          {formatReceivedDate(p.receivedDate, p.createdAt)}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
+              <tfoot className="print-only-tfoot">
+                <tr>
+                  <td colSpan={11} style={{ height: "25mm", border: "none", padding: 0, background: "transparent" }}></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -879,6 +1187,7 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
       {(initialSection === "visa" || initialSection === "all") && (
         <div className="glass-panel" style={{ overflow: "hidden" }}>
           <div
+            className="no-print"
             style={{
               padding: "16px 20px",
               borderBottom: "1px solid var(--border-subtle)",
@@ -902,27 +1211,41 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
             )}
           </div>
 
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
+          <div className="report-table-wrapper" style={{ overflowX: "auto" }}>
+            <table className="report-print-table" style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
+              <colgroup>
+                <col className="print-col-track" style={{ width: "7%" }} />
+                <col className="print-col-name" style={{ width: "22%" }} />
+                <col className="print-col-passport" style={{ width: "9%" }} />
+                <col className="print-col-phone" style={{ width: "10%" }} />
+                <col className="print-col-service" style={{ width: "10%" }} />
+                <col className="print-col-total" style={{ width: "9%" }} />
+                <col className="print-col-paid" style={{ width: "8%" }} />
+                <col className="print-col-due" style={{ width: "8%" }} />
+                <col className="print-col-status" style={{ width: "8%" }} />
+                <col className="print-col-date" style={{ width: "9%" }} />
+              </colgroup>
               <thead>
                 <tr style={{ background: "rgba(255, 255, 255, 0.03)", borderBottom: "1px solid var(--border-subtle)" }}>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>ট্র্যাকিং আইডি</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>আবেদনকারীর নাম</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>পাসপোর্ট নং</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>মোবাইল</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>গন্তব্য দেশ</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>সার্ভিস ধরন</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>চুক্তি টাকা</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>জমা টাকা</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>বকেয়া টাকা</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>স্ট্যাটাস</th>
-                  <th style={{ padding: "12px 16px", color: "var(--text-muted)" }}>তারিখ</th>
+                  <th className="print-col-track" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>ট্র্যাকিং আইডি</th>
+                  <th className="print-col-name" style={{ padding: "10px 6px", color: "var(--text-muted)" }}>
+                    <span className="no-print">আবেদনকারীর নাম ও ধরন</span>
+                    <span className="print-only">আবেদনকারীর নাম</span>
+                  </th>
+                  <th className="print-col-passport" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>পাসপোর্ট নং</th>
+                  <th className="print-col-phone" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>মোবাইল</th>
+                  <th className="print-col-service" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>সার্ভিস ধরন</th>
+                  <th className="print-col-total" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>চুক্তি টাকা</th>
+                  <th className="print-col-paid" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>জমা টাকা</th>
+                  <th className="print-col-due" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>বকেয়া টাকা</th>
+                  <th className="print-col-status" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>স্ট্যাটাস</th>
+                  <th className="print-col-date" style={{ padding: "10px 4px", color: "var(--text-muted)" }}>রিসিভ তারিখ</th>
                 </tr>
               </thead>
               <tbody>
                 {visaList.length === 0 ? (
                   <tr>
-                    <td colSpan={11} style={{ padding: "30px", textAlign: "center", color: "var(--text-muted)" }}>
+                    <td colSpan={10} style={{ padding: "30px", textAlign: "center", color: "var(--text-muted)" }}>
                       কোনো ভিসা রেকর্ড পাওয়া যায়নি
                     </td>
                   </tr>
@@ -931,14 +1254,99 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
                     const total = Number(v.totalAmount ?? v.feeAmount) || 0;
                     const paid = Number(v.paidAmount ?? (v.feeStatus === "paid" ? total : 0)) || 0;
                     const due = Number(v.dueAmount ?? Math.max(0, total - paid)) || 0;
+                    const isFam = v.applicationCategory === "family_group";
+                    const isHead = isFam && v.isFamilyHead;
+                    const isMember = isFam && !v.isFamilyHead;
+
                     return (
                       <tr key={v._id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                        <td style={{ padding: "12px 16px", fontWeight: 700, color: "#38bdf8" }}>{v.trackingId}</td>
-                        <td style={{ padding: "12px 16px", fontWeight: 600 }}>{v.applicantName}</td>
-                        <td style={{ padding: "12px 16px", fontFamily: "monospace", fontWeight: 700, color: "var(--text-main)" }}>{v.passportNumber}</td>
-                        <td style={{ padding: "12px 16px", color: "var(--text-secondary)" }}>{v.phone}</td>
-                        <td style={{ padding: "12px 16px", color: "#34d399", fontWeight: 600 }}>{v.destinationCountry}</td>
-                        <td style={{ padding: "12px 16px", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                        <td style={{ padding: "8px 4px", fontWeight: 700, color: "#38bdf8", verticalAlign: "middle" }} className="print-td-track">
+                          {v.trackingId}
+                        </td>
+                        <td style={{ padding: "8px 6px", verticalAlign: "middle" }} className="print-td-name">
+                          <div style={{ fontWeight: 700, color: "var(--text-main)", fontSize: "0.86rem" }}>
+                            {v.applicantName}
+                          </div>
+                          {/* Screen-only category & relation badges */}
+                          <div className="no-print">
+                            {isFam ? (
+                              <div style={{ marginTop: "3px" }}>
+                                {isHead ? (
+                                  <span
+                                    className="print-category-pill"
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "3px",
+                                      fontSize: "0.7rem",
+                                      padding: "2px 8px",
+                                      borderRadius: "9999px",
+                                      background: "rgba(99, 102, 241, 0.12)",
+                                      color: "#4f46e5",
+                                      border: "1px solid rgba(99, 102, 241, 0.25)",
+                                      fontWeight: 700,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    👨‍👩‍👧‍👦 ফ্যামিলি প্যাকেজ ({v.familyMemberCount || 1} জন) • প্রধান বিল
+                                  </span>
+                                ) : (
+                                  <div>
+                                    <span
+                                      className="print-category-pill"
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "3px",
+                                        fontSize: "0.7rem",
+                                        padding: "2px 8px",
+                                        borderRadius: "9999px",
+                                        background: "rgba(14, 165, 233, 0.12)",
+                                        color: "#0284c7",
+                                        border: "1px solid rgba(14, 165, 233, 0.25)",
+                                        fontWeight: 600,
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      🔗 {v.familyRelation || "ফ্যামিলি সদস্য"}
+                                    </span>
+                                    <div style={{ fontSize: "0.71rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                      বিল দায়িত্ব: <b style={{ color: "#4f46e5" }}>{v.familyHeadName || "প্যাকেজ প্রধান"}</b> ({v.familyHeadTrackingId})
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ marginTop: "3px" }}>
+                                <span
+                                  className="print-category-pill"
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "3px",
+                                    fontSize: "0.7rem",
+                                    padding: "2px 8px",
+                                    borderRadius: "9999px",
+                                    background: "rgba(16, 185, 129, 0.12)",
+                                    color: "#059669",
+                                    border: "1px solid rgba(16, 185, 129, 0.25)",
+                                    fontWeight: 700,
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  👤 একক আবেদন (Single)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ padding: "8px 4px", fontFamily: "monospace", fontWeight: 700, color: "var(--text-main)", verticalAlign: "middle" }} className="print-td-mono">
+                          {v.passportNumber}
+                        </td>
+                        <td style={{ padding: "8px 4px", color: "var(--text-secondary)", verticalAlign: "middle" }} className="print-td-phone">
+                          {v.phone}
+                        </td>
+                        <td style={{ padding: "8px 4px", fontSize: "0.8rem", color: "var(--text-secondary)", verticalAlign: "middle" }} className="print-td-service">
                           {v.serviceType === "tourist_visa"
                             ? "ট্যুরিস্ট ভিসা"
                             : v.serviceType === "medical_visa"
@@ -949,15 +1357,102 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
                             ? "স্টুডেন্ট ভিসা"
                             : v.serviceType === "work_permit"
                             ? "ওয়ার্ক পারমিট"
+                            : v.serviceType === "business_visa"
+                            ? "বিজনেস ভিসা"
                             : v.serviceType}
                         </td>
-                        <td style={{ padding: "12px 16px", fontWeight: 700 }}>৳ {total.toLocaleString("en-IN")}</td>
-                        <td style={{ padding: "12px 16px", fontWeight: 700, color: "#34d399" }}>৳ {paid.toLocaleString("en-IN")}</td>
-                        <td style={{ padding: "12px 16px", fontWeight: 700, color: due > 0 ? "#fbbf24" : "#34d399" }}>
-                          ৳ {due.toLocaleString("en-IN")}
+
+                        {/* চুক্তি টাকা */}
+                        <td style={{ padding: "8px 4px", verticalAlign: "middle" }} className="print-td-num">
+                          {isMember ? (
+                            <div>
+                              <span
+                                className="print-category-pill"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  padding: "2px 7px",
+                                  borderRadius: "6px",
+                                  background: "rgba(14, 165, 233, 0.1)",
+                                  color: "#0284c7",
+                                  fontSize: "0.74rem",
+                                  fontWeight: 700,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                <span className="no-print-emoji">🤝 </span>যৌথ বিলে
+                              </span>
+                              <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "2px" }} className="print-note">
+                                {v.familyHeadTrackingId ? `${v.familyHeadTrackingId} বিলে` : "প্রধানের চুক্তিতে"}
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: "0.88rem", color: "var(--text-main)" }} className="print-amount">
+                                <span className="no-print">৳ </span>{total.toLocaleString("en-IN")}
+                              </div>
+                              {isHead ? (
+                                <div style={{ fontSize: "0.68rem", color: "#4f46e5", fontWeight: 700, marginTop: "2px" }} className="print-note">
+                                  <span className="no-print-emoji">👨‍👩‍👧‍👦 </span>{v.familyMemberCount || 1} জনের বিল
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "2px" }} className="print-note">
+                                  একক চুক্তি
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </td>
-                        <td style={{ padding: "12px 16px" }}>
+
+                        {/* জমা টাকা */}
+                        <td style={{ padding: "8px 4px", verticalAlign: "middle" }} className="print-td-num">
+                          {isMember ? (
+                            <div style={{ fontSize: "0.73rem", color: "var(--text-muted)", fontStyle: "italic" }} className="print-note">
+                              {v.familyHeadTrackingId ? `${v.familyHeadTrackingId} তে জমা` : "যৌথ জমার অন্তর্ভুক্ত"}
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ fontWeight: 800, color: "#059669", fontSize: "0.88rem" }} className="print-amount">
+                                <span className="no-print">৳ </span>{paid.toLocaleString("en-IN")}
+                              </div>
+                              {isHead && (
+                                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: "2px" }} className="print-note">
+                                  প্যাকেজ জমা
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* বকেয়া টাকা */}
+                        <td style={{ padding: "8px 4px", verticalAlign: "middle" }} className="print-td-num">
+                          {isMember ? (
+                            <div style={{ fontSize: "0.73rem", color: "var(--text-muted)", fontStyle: "italic" }} className="print-note">
+                              {v.familyHeadTrackingId ? `বিল প্রধানের দায়` : "যৌথ বিলে"}
+                            </div>
+                          ) : (
+                            <div>
+                              <div style={{ fontWeight: 800, color: due > 0 ? "#d97706" : "#059669", fontSize: "0.88rem" }} className="print-amount">
+                                <span className="no-print">৳ </span>{due.toLocaleString("en-IN")}
+                              </div>
+                              {isHead ? (
+                                <div style={{ fontSize: "0.68rem", color: due > 0 ? "#b45309" : "#059669", fontWeight: 700, marginTop: "2px" }} className="print-note">
+                                  {due > 0 ? "প্যাকেজ বকেয়া" : "পরিশোধিত"}
+                                </div>
+                              ) : due === 0 ? (
+                                <div style={{ fontSize: "0.68rem", color: "#059669", marginTop: "2px" }} className="print-note">
+                                  পরিশোধিত
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* স্ট্যাটাস */}
+                        <td style={{ padding: "8px 4px", verticalAlign: "middle" }} className="print-td-status">
                           <span
+                            className="print-status-text"
                             style={{
                               padding: "3px 8px",
                               borderRadius: "4px",
@@ -965,46 +1460,46 @@ export default function ReportModule({ initialSection = "all" }: ReportModulePro
                               fontWeight: 700,
                               background: getStatusBadge(v.status).bg,
                               color: getStatusBadge(v.status).color,
+                              whiteSpace: "nowrap",
                             }}
                           >
                             {getStatusBadge(v.status).label}
                           </span>
                         </td>
-                        <td style={{ padding: "12px 16px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                          {new Date(v.createdAt).toLocaleDateString("bn-BD")}
+
+                        {/* Receive Date */}
+                        <td style={{ padding: "8px 4px", fontSize: "0.75rem", color: "var(--text-muted)", verticalAlign: "middle" }} className="print-td-date">
+                          {formatReceivedDate(v.receivedDate, v.createdAt)}
                         </td>
                       </tr>
                     );
                   })
                 )}
               </tbody>
+              <tfoot className="print-only-tfoot">
+                <tr>
+                  <td colSpan={10} style={{ height: "25mm", border: "none", padding: 0, background: "transparent" }}></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
       )}
 
-      {/* OFFICIAL PRINT FOOTER WITH SIGNATURE BOXES (PRINT ONLY) */}
-      <div
-        className="print-footer"
-        style={{
-          display: "none",
-          marginTop: "40px",
-          paddingTop: "15px",
-        }}
-      >
-        <div className="print-signature-box">
-          <div style={{ fontWeight: 700 }}>প্রস্তুতকারক (Prepared By)</div>
-          <div style={{ fontSize: "8pt", color: "#64748b" }}>শর্মা ট্রাভেলস & ভিসা এজেন্সি</div>
-        </div>
-
-        <div className="print-signature-box">
-          <div style={{ fontWeight: 700 }}>অ্যাকাউন্টস অফিসার (Accounts)</div>
-          <div style={{ fontSize: "8pt", color: "#64748b" }}>হিসাব বিভাগ</div>
-        </div>
-
-        <div className="print-signature-box">
-          <div style={{ fontWeight: 700 }}>অনুমোদনকারী (Authorized Signature)</div>
-          <div style={{ fontSize: "8pt", color: "#64748b" }}>ম্যানেজিং ডিরেক্টর / স্বত্বাধিকারী</div>
+      {/* FIXED PRINT FOOTER: APPEARS ON EVERY PAGE */}
+      <div className="print-footer-fixed" style={{ width: "100%", left: 0, right: 0 }}>
+        <div className="print-footer-divider" style={{ borderTop: "1.5px solid #000000", width: "100%", marginBottom: "14px" }}></div>
+        <div className="print-footer-grid" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+          <div className="print-sig-box print-sig-box-left" style={{ width: "220px", textAlign: "left" }}>
+            <div className="print-sig-line" style={{ borderTop: "1px dashed #333333", width: "200px", height: "1px", marginBottom: "6px" }}></div>
+            <div className="print-sig-label">যাচাইকারী (Checked By)</div>
+            <div className="print-sig-note">Sharma Pharmacy - Financial Report</div>
+          </div>
+          <div className="print-sig-box print-sig-box-right" style={{ width: "220px", textAlign: "right", marginLeft: "auto" }}>
+            <div className="print-sig-line" style={{ borderTop: "1px dashed #333333", width: "200px", height: "1px", marginBottom: "6px", marginLeft: "auto" }}></div>
+            <div className="print-sig-label">ম্যানেজার (Manager's Signature)</div>
+            <div className="print-sig-note">Page 1</div>
+          </div>
         </div>
       </div>
     </div>

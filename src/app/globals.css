@@ -431,23 +431,38 @@ select.input-field optgroup {
 /* ==========================================================================
    OFFICIAL PRINT STYLES FOR REPORTS
    ========================================================================== */
+@media screen {
+  .print-first-page-header,
+  .print-footer-fixed,
+  .print-only-tfoot,
+  .print-only {
+    display: none !important;
+  }
+}
+
 @media print {
-  /* Set A4 page margins */
+  /* Set A4 Portrait page margins with reserved bottom margin for the fixed footer */
   @page {
-    size: A4 landscape;
-    margin: 12mm 10mm 15mm 10mm;
+    size: A4 portrait;
+    margin-top: 10mm;
+    margin-right: 7mm;
+    margin-bottom: 24mm;
+    margin-left: 7mm;
   }
 
   body {
     background: #ffffff !important;
-    color: #0f172a !important;
-    font-size: 10pt !important;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+    color: #000000 !important;
+    font-size: 8pt !important;
+    font-family: Arial, "Segoe UI", Tahoma, sans-serif !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
   }
 
-  /* Hide app navigation chrome */
+  /* Hide app navigation chrome & screen-only controls */
   nav,
   aside,
   header,
@@ -456,94 +471,332 @@ select.input-field optgroup {
   .btn-primary,
   .btn-secondary,
   .input-field,
-  form {
+  form,
+  .print-summary-grid {
     display: none !important;
   }
 
   /* Force full width and cancel overflow limitations */
-  main {
+  main,
+  .glass-panel,
+  .report-table-wrapper,
+  div[style*="overflow"] {
     max-width: 100% !important;
     width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
     overflow: visible !important;
-  }
-
-  .glass-panel {
-    background: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
+    background: transparent !important;
+    border: none !important;
     box-shadow: none !important;
     backdrop-filter: none !important;
-    border-radius: 4px !important;
-    margin-bottom: 12px !important;
-    break-inside: avoid;
+    border-radius: 0 !important;
   }
 
-  /* Print specific header */
-  .print-header {
+  /* First Page Letterhead (Only renders on 1st page in document flow) */
+  .print-first-page-header {
     display: block !important;
-    border-bottom: 2px solid #0f172a !important;
-    padding-bottom: 12px !important;
-    margin-bottom: 16px !important;
+    text-align: center !important;
+    margin-bottom: 8px !important;
   }
 
-  /* Data Table in Print */
+  .print-org-title {
+    font-size: 18pt !important;
+    font-weight: 800 !important;
+    color: #000000 !important;
+    margin: 0 0 2px 0 !important;
+    line-height: 1.1 !important;
+  }
+
+  .print-org-name {
+    font-size: 11pt !important;
+    font-weight: 700 !important;
+    color: #000000 !important;
+    margin: 0 0 2px 0 !important;
+  }
+
+  .print-org-address {
+    font-size: 9pt !important;
+    font-weight: 500 !important;
+    color: #000000 !important;
+    margin: 0 0 2px 0 !important;
+  }
+
+  .print-org-contact {
+    font-size: 8.5pt !important;
+    font-weight: 500 !important;
+    color: #000000 !important;
+    margin: 0 0 5px 0 !important;
+  }
+
+  .print-header-line {
+    border-bottom: 2px solid #000000 !important;
+    width: 100% !important;
+    margin: 4px 0 8px 0 !important;
+  }
+
+  .print-doc-title {
+    font-size: 12pt !important;
+    font-weight: 800 !important;
+    color: #000000 !important;
+    margin: 4px 0 8px 0 !important;
+    text-align: center !important;
+  }
+
+  /* Data Table in Print: Fixed layout to fit 100% of A4 portrait */
   table {
     width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
     border-collapse: collapse !important;
-    font-size: 8.5pt !important;
-    color: #0f172a !important;
+    font-size: 7.2pt !important;
+    color: #000000 !important;
+    margin-top: 4px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* STRICT PURE BLACK & WHITE: Zero colors in print */
+  table,
+  table *,
+  th,
+  td,
+  span,
+  div,
+  b,
+  strong {
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   th {
-    background-color: #f1f5f9 !important;
-    color: #0f172a !important;
-    border: 1px solid #cbd5e1 !important;
-    padding: 6px 8px !important;
-    font-weight: 700 !important;
-    text-transform: uppercase !important;
-    font-size: 8pt !important;
+    background-color: #f8fafc !important;
+    color: #000000 !important;
+    border: 1px solid #000000 !important;
+    padding: 4px 2px !important;
+    font-weight: 800 !important;
+    font-size: 7.5pt !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
   }
 
   td {
-    border: 1px solid #cbd5e1 !important;
-    padding: 6px 8px !important;
-    color: #1e293b !important;
+    background-color: #ffffff !important;
+    border: 1px solid #000000 !important;
+    padding: 3px 2px !important;
+    color: #000000 !important;
+    font-size: 7.2pt !important;
+    vertical-align: middle !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    line-height: 1.2 !important;
   }
 
   tr {
-    break-inside: avoid;
-    page-break-inside: avoid;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 
-  /* Badges & highlights in print */
-  span[style*="background"] {
-    border: 1px solid #cbd5e1 !important;
+  .print-only {
+    display: inline-block !important;
   }
 
-  /* Summary cards print layout */
-  .print-summary-grid {
-    display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
-    gap: 10px !important;
-    margin-bottom: 15px !important;
+  /* Fixed column widths for Visa Report Table (Total = 100%) */
+  .print-col-track { width: 7% !important; }
+  .print-col-name { width: 22% !important; }
+  .print-col-passport { width: 9% !important; }
+  .print-col-phone { width: 10% !important; }
+  .print-col-service { width: 10% !important; }
+  .print-col-total { width: 9% !important; }
+  .print-col-paid { width: 8% !important; }
+  .print-col-due { width: 8% !important; }
+  .print-col-status { width: 8% !important; }
+  .print-col-date { width: 9% !important; }
+
+  /* Fixed column widths for Passport Report Table (Total = 100%) */
+  .print-col-p-entry { width: 7% !important; }
+  .print-col-p-name { width: 19% !important; }
+  .print-col-p-phone { width: 9% !important; }
+  .print-col-p-nid { width: 10% !important; }
+  .print-col-p-type { width: 12% !important; }
+  .print-col-p-trackid { width: 9% !important; }
+  .print-col-p-total { width: 8% !important; }
+  .print-col-p-paid { width: 7% !important; }
+  .print-col-p-due { width: 7% !important; }
+  .print-col-p-status { width: 6% !important; }
+  .print-col-p-date { width: 6% !important; }
+
+  /* Table column alignments */
+  .print-td-track {
+    text-align: center !important;
+    font-weight: 800 !important;
+    font-size: 7.5pt !important;
   }
 
-  /* Official signature footer at bottom of print */
-  .print-footer {
+  .print-td-name {
+    text-align: left !important;
+    font-weight: 700 !important;
+    padding-left: 4px !important;
+  }
+
+  .print-td-mono {
+    text-align: center !important;
+    font-family: monospace !important;
+    font-weight: 700 !important;
+    font-size: 7.2pt !important;
+  }
+
+  .print-td-phone,
+  .print-td-service,
+  .print-td-status,
+  .print-td-date {
+    text-align: center !important;
+    font-size: 7.2pt !important;
+  }
+
+  .print-td-num {
+    text-align: right !important;
+    font-weight: 700 !important;
+    font-size: 7.5pt !important;
+    padding-right: 4px !important;
+    white-space: normal !important;
+  }
+
+  .print-amount {
+    font-weight: 800 !important;
+    font-size: 8pt !important;
+    color: #000000 !important;
+  }
+
+  /* REMOVE ALL INNER BOXES/BORDERS INSIDE TABLE CELLS IN PRINT */
+  table td * {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* B&W Category Badge: Clean plain text without box border */
+  .print-category-pill {
+    font-size: 7.2pt !important;
+    color: #000000 !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    display: inline !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    box-shadow: none !important;
+  }
+
+  /* Subtitle notes under names and numbers */
+  .print-note {
+    font-size: 6.5pt !important;
+    color: #000000 !important;
+    font-weight: 500 !important;
+    line-height: 1.15 !important;
+    margin-top: 1px !important;
+    display: block !important;
+  }
+
+  /* Status text in print: Clean plain text without inner box border */
+  .print-status-text {
+    background: transparent !important;
+    border: none !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    font-weight: 700 !important;
+    font-size: 7.2pt !important;
+    display: inline !important;
+    line-height: 1.2 !important;
+    white-space: normal !important;
+    box-shadow: none !important;
+  }
+
+  /* Hide emojis in print */
+  .no-print-emoji {
+    display: none !important;
+  }
+
+  /* Spacer in tfoot to reserve space on every page for fixed footer */
+  .print-only-tfoot {
+    display: table-footer-group !important;
+  }
+
+  .print-only-tfoot td {
+    height: 22mm !important;
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Official Fixed Footer with Signatures: Repeats on EVERY Printed Page */
+  .print-footer-fixed {
+    display: block !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    padding-bottom: 2mm !important;
+    z-index: 9999 !important;
+  }
+
+  .print-footer-divider {
+    border-top: 1px solid #000000 !important;
+    width: 100% !important;
+    margin-bottom: 8px !important;
+  }
+
+  .print-footer-grid {
     display: flex !important;
     justifyContent: space-between !important;
-    margin-top: 35px !important;
-    padding-top: 15px !important;
-    break-inside: avoid;
+    align-items: flex-start !important;
+    width: 100% !important;
   }
 
-  .print-signature-box {
-    text-align: center !important;
+  .print-sig-box {
     width: 200px !important;
-    border-top: 1px solid #64748b !important;
-    padding-top: 6px !important;
+  }
+
+  .print-sig-box-left {
+    text-align: left !important;
+    float: left !important;
+  }
+
+  .print-sig-box-right {
+    text-align: right !important;
+    float: right !important;
+    margin-left: auto !important;
+  }
+
+  .print-sig-line {
+    border-top: 1px dashed #000000 !important;
+    width: 170px !important;
+    height: 1px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .print-sig-box-right .print-sig-line {
+    margin-left: auto !important;
+  }
+
+  .print-sig-label {
     font-size: 8.5pt !important;
-    color: #334155 !important;
+    font-weight: 700 !important;
+    color: #000000 !important;
+    margin-bottom: 2px !important;
+    white-space: nowrap !important;
+  }
+
+  .print-sig-note {
+    font-size: 7pt !important;
+    color: #000000 !important;
+    white-space: nowrap !important;
   }
 }

@@ -9,31 +9,48 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
+    const category = searchParams.get("category") || "all";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "10", 10)));
     const skip = (page - 1) * limit;
 
-    const query: Record<string, unknown> = {};
+    const andConditions: any[] = [];
 
     if (status !== "all") {
-      query.status = status;
+      andConditions.push({ status });
+    }
+
+    if (category === "individual") {
+      andConditions.push({
+        $or: [
+          { applicationCategory: "individual" },
+          { applicationCategory: { $exists: false } },
+          { applicationCategory: null },
+        ],
+      });
+    } else if (category === "family_group") {
+      andConditions.push({ applicationCategory: "family_group" });
     }
 
     if (search.trim()) {
       const regex = new RegExp(search.trim(), "i");
-      query.$or = [
-        { name: regex },
-        { mobile: regex },
-        { nid: regex },
-        { entryNumber: regex },
-        { email: regex },
-        { onlineTrackId: regex },
-        { familyGroupId: regex },
-        { familyHeadName: regex },
-        { familyHeadEntryNumber: regex },
-        { groupMembersSummary: regex },
-      ];
+      andConditions.push({
+        $or: [
+          { name: regex },
+          { mobile: regex },
+          { nid: regex },
+          { entryNumber: regex },
+          { email: regex },
+          { onlineTrackId: regex },
+          { familyGroupId: regex },
+          { familyHeadName: regex },
+          { familyHeadEntryNumber: regex },
+          { groupMembersSummary: regex },
+        ],
+      });
     }
+
+    const query = andConditions.length > 0 ? { $and: andConditions } : {};
 
     // Run query, count, and aggregation in parallel for ultra-fast response
     const [entries, totalMatching, statsResult] = await Promise.all([

@@ -15,6 +15,7 @@ export async function GET(request: Request) {
     const passportType = searchParams.get("passportType") || "all";
     const destinationCountry = searchParams.get("destinationCountry") || "all";
     const serviceType = searchParams.get("serviceType") || "all";
+    const category = searchParams.get("category") || searchParams.get("applicationCategory") || "all";
     const search = searchParams.get("search") || "";
 
     // Build Date Filter
@@ -32,23 +33,44 @@ export async function GET(request: Request) {
     // 1. Fetch Passport Entries
     let passportList: any[] = [];
     if (moduleType === "all" || moduleType === "passport") {
-      const pQuery: Record<string, unknown> = { ...dateQuery };
+      const pConditions: any[] = [];
+      if (startDate || endDate) {
+        pConditions.push(dateQuery);
+      }
       if (status !== "all") {
-        pQuery.status = status;
+        pConditions.push({ status });
       }
       if (passportType !== "all") {
-        pQuery.passportType = passportType;
+        pConditions.push({ passportType });
+      }
+      if (category !== "all") {
+        if (category === "single" || category === "individual") {
+          pConditions.push({
+            $or: [
+              { applicationCategory: "individual" },
+              { applicationCategory: { $exists: false } },
+              { applicationCategory: null },
+            ],
+          });
+        } else if (category === "family_group") {
+          pConditions.push({ applicationCategory: "family_group" });
+        }
       }
       if (search.trim()) {
         const regex = new RegExp(search.trim(), "i");
-        pQuery.$or = [
-          { name: regex },
-          { mobile: regex },
-          { nid: regex },
-          { entryNumber: regex },
-          { onlineTrackId: regex },
-        ];
+        pConditions.push({
+          $or: [
+            { name: regex },
+            { mobile: regex },
+            { nid: regex },
+            { entryNumber: regex },
+            { onlineTrackId: regex },
+            { familyHeadName: regex },
+            { familyHeadEntryNumber: regex },
+          ],
+        });
       }
+      const pQuery = pConditions.length > 0 ? { $and: pConditions } : {};
       passportList = await PassportEntry.find(pQuery).sort({ createdAt: -1 }).lean();
       if (paymentStatus === "due") {
         passportList = passportList.filter((item) => (item.dueAmount || 0) > 0);
@@ -60,26 +82,47 @@ export async function GET(request: Request) {
     // 2. Fetch Visa Applications
     let visaList: any[] = [];
     if (moduleType === "all" || moduleType === "visa") {
-      const vQuery: Record<string, unknown> = { ...dateQuery };
+      const vConditions: any[] = [];
+      if (startDate || endDate) {
+        vConditions.push(dateQuery);
+      }
       if (status !== "all") {
-        vQuery.status = status;
+        vConditions.push({ status });
       }
       if (destinationCountry !== "all") {
-        vQuery.destinationCountry = destinationCountry;
+        vConditions.push({ destinationCountry });
       }
       if (serviceType !== "all") {
-        vQuery.serviceType = serviceType;
+        vConditions.push({ serviceType });
+      }
+      if (category !== "all") {
+        if (category === "single" || category === "individual") {
+          vConditions.push({
+            $or: [
+              { applicationCategory: "individual" },
+              { applicationCategory: { $exists: false } },
+              { applicationCategory: null },
+            ],
+          });
+        } else if (category === "family_group") {
+          vConditions.push({ applicationCategory: "family_group" });
+        }
       }
       if (search.trim()) {
         const regex = new RegExp(search.trim(), "i");
-        vQuery.$or = [
-          { applicantName: regex },
-          { passportNumber: regex },
-          { trackingId: regex },
-          { phone: regex },
-          { destinationCountry: regex },
-        ];
+        vConditions.push({
+          $or: [
+            { applicantName: regex },
+            { passportNumber: regex },
+            { trackingId: regex },
+            { phone: regex },
+            { destinationCountry: regex },
+            { familyHeadName: regex },
+            { familyHeadTrackingId: regex },
+          ],
+        });
       }
+      const vQuery = vConditions.length > 0 ? { $and: vConditions } : {};
       visaList = await VisaApplication.find(vQuery).sort({ createdAt: -1 }).lean();
       if (paymentStatus === "due") {
         visaList = visaList.filter((item) => {

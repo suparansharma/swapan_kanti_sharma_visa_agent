@@ -25,6 +25,7 @@ import {
   FileText,
   CheckCircle2,
   Clock,
+  Calendar,
   Plus,
   Trash2,
   Search,
@@ -199,6 +200,7 @@ export default function Dashboard() {
   const [loadingVisa, setLoadingVisa] = useState(true);
   const [searchVisa, setSearchVisa] = useState("");
   const [filterVisaStatus, setFilterVisaStatus] = useState("all");
+  const [filterVisaCategory, setFilterVisaCategory] = useState<"all" | "individual" | "family_group">("all");
   const [showAddVisaModal, setShowAddVisaModal] = useState(false);
   const [selectedVisa, setSelectedVisa] = useState<VisaApplicationItem | null>(null);
 
@@ -297,13 +299,15 @@ export default function Dashboard() {
     page = visaCurrentPage,
     limit = visaPageSize,
     search = searchVisa,
-    statusFilter = filterVisaStatus
+    statusFilter = filterVisaStatus,
+    categoryFilter = filterVisaCategory
   ) => {
     try {
       setLoadingVisa(true);
       const params = new URLSearchParams();
       if (search.trim()) params.append("search", search.trim());
       if (statusFilter !== "all") params.append("status", statusFilter);
+      if (categoryFilter !== "all") params.append("category", categoryFilter);
       params.append("page", page.toString());
       params.append("limit", limit.toString());
 
@@ -327,14 +331,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (activeTab === "visa_applications") {
-      fetchVisaApplications(1, visaPageSize, searchVisa, filterVisaStatus);
+      fetchVisaApplications(1, visaPageSize, searchVisa, filterVisaStatus, filterVisaCategory);
     }
-  }, [filterVisaStatus, visaPageSize, activeTab]);
+  }, [filterVisaStatus, filterVisaCategory, visaPageSize, activeTab]);
 
   const handleVisaPageChange = (newPage: number) => {
     if (newPage < 1 || newPage > visaTotalPages || newPage === visaCurrentPage) return;
     setVisaCurrentPage(newPage);
-    fetchVisaApplications(newPage, visaPageSize, searchVisa, filterVisaStatus);
+    fetchVisaApplications(newPage, visaPageSize, searchVisa, filterVisaStatus, filterVisaCategory);
   };
 
   // Create Visa Application
@@ -497,7 +501,27 @@ export default function Dashboard() {
   };
 
   const getStatusBadge = (s: string) => {
-    return getVisaStatusBadge(s);
+    const raw = getVisaStatusBadge(s);
+    switch (s) {
+      case "submitted":
+        return { label: raw.label, bg: "rgba(99, 102, 241, 0.12)", color: "#4f46e5", border: "rgba(99, 102, 241, 0.3)" };
+      case "approved":
+      case "delivery_completed":
+      case "dr_ayush_done":
+        return { label: raw.label, bg: "rgba(16, 185, 129, 0.12)", color: "#059669", border: "rgba(16, 185, 129, 0.3)" };
+      case "document_verification":
+      case "appointment_slot_pending":
+      case "ready_for_appointment":
+        return { label: raw.label, bg: "rgba(245, 158, 11, 0.12)", color: "#b45309", border: "rgba(245, 158, 11, 0.3)" };
+      case "visa_processing":
+      case "embassy_processing":
+        return { label: raw.label, bg: "rgba(14, 165, 233, 0.12)", color: "#0284c7", border: "rgba(14, 165, 233, 0.3)" };
+      case "ready_for_delivery":
+      case "ready_for_pickup":
+        return { label: raw.label, bg: "rgba(16, 185, 129, 0.15)", color: "#047857", border: "rgba(16, 185, 129, 0.35)" };
+      default:
+        return { label: raw.label, bg: raw.bg || "rgba(100, 116, 139, 0.1)", color: raw.color || "#475569", border: "rgba(100, 116, 139, 0.25)" };
+    }
   };
 
   return (
@@ -628,13 +652,14 @@ export default function Dashboard() {
                     marginLeft: "18px",
                   }}
                 >
-                  {/* Passport Entry (ACTIVE PRIMARY SUB-MODULE) */}
+                  {/* Passport Entry */}
                   <button
                     onClick={() => setActiveTab("passport_entry")}
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "space-between",
+                      gap: "8px",
+                      width: "100%",
                       padding: "8px 12px",
                       borderRadius: "6px",
                       border: "none",
@@ -648,22 +673,8 @@ export default function Dashboard() {
                       transition: "all 0.15s ease",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <FileText size={15} />
-                      <span>Passport Entry</span>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "0.68rem",
-                        padding: "2px 6px",
-                        borderRadius: "4px",
-                        background: activeTab === "passport_entry" ? "rgba(255, 255, 255, 0.2)" : "rgba(16, 185, 129, 0.15)",
-                        color: activeTab === "passport_entry" ? "#fff" : "#34d399",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Active
-                    </span>
+                    <FileText size={15} />
+                    <span>Passport Entry</span>
                   </button>
                 </div>
               )}
@@ -1127,7 +1138,7 @@ export default function Dashboard() {
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <Building2 size={15} />
-                      <span>Department (ডিপার্টমেন্ট)</span>
+                      <span>Department</span>
                     </div>
                     {activeTab === "hrm_departments" && (
                       <span
@@ -1172,7 +1183,7 @@ export default function Dashboard() {
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <Briefcase size={15} />
-                      <span>Designation (পদবী)</span>
+                      <span>Designation</span>
                     </div>
                     {activeTab === "hrm_designations" && (
                       <span
@@ -1574,97 +1585,251 @@ export default function Dashboard() {
             <div
               className="glass-panel"
               style={{
-                padding: "16px 20px",
+                padding: "20px",
                 display: "flex",
-                gap: "14px",
-                flexWrap: "wrap",
-                alignItems: "center",
-                justifyContent: "space-between",
+                flexDirection: "column",
+                gap: "16px",
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "14px",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.02)",
               }}
             >
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  fetchVisaApplications();
+              {/* Row 1: Category Segmented Switcher & Quick Counter */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "12px",
                 }}
-                style={{ display: "flex", gap: "10px", flex: 1, minWidth: "260px" }}
               >
-                <div style={{ position: "relative", flex: 1 }}>
-                  <Search
-                    size={16}
-                    style={{
-                      position: "absolute",
-                      left: "12px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      color: "var(--text-muted)",
-                    }}
-                  />
-                  <input
-                    type="text"
-                    value={searchVisa}
-                    onChange={(e) => setSearchVisa(e.target.value)}
-                    placeholder="আবেদনকারীর নাম, পাসপোর্ট নং, মোবাইল, বা ট্র্যাকিং আইডি দিয়ে খুঁজুন..."
-                    className="input-field"
-                    style={{ paddingLeft: "36px", height: "42px", fontSize: "0.88rem" }}
-                  />
-                </div>
-                <button type="submit" className="btn-secondary" style={{ height: "42px", padding: "0 18px" }}>
-                  খুঁজুন
-                </button>
-              </form>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                  স্ট্যাটাস:
-                </span>
-                <select
-                  value={filterVisaStatus}
-                  onChange={(e) => setFilterVisaStatus(e.target.value)}
-                  className="input-field"
-                  style={{ width: "auto", height: "42px", fontSize: "0.85rem", padding: "0 12px" }}
+                <div
+                  style={{
+                    display: "inline-flex",
+                    background: "var(--bg-subtle-box, #f1f5f9)",
+                    borderRadius: "10px",
+                    padding: "4px",
+                    border: "1px solid var(--border-subtle)",
+                    gap: "4px",
+                  }}
                 >
-                  <option value="all">সকল আবেদন</option>
-                  <optgroup label="সাধারণ স্ট্যাটাস">
-                    {VISA_GENERAL_STATUSES.map((st) => (
-                      <option key={st.value} value={st.value}>
-                        {st.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="মেডিকেল / আয়ুষ স্পেশাল">
-                    {VISA_MEDICAL_STATUSES.map((st) => (
-                      <option key={st.value} value={st.value}>
-                        {st.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
+                  <button
+                    type="button"
+                    onClick={() => setFilterVisaCategory("all")}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: filterVisaCategory === "all" ? "var(--primary-gradient)" : "transparent",
+                      color: filterVisaCategory === "all" ? "#fff" : "var(--text-secondary)",
+                      fontWeight: filterVisaCategory === "all" ? 800 : 600,
+                      cursor: "pointer",
+                      fontSize: "0.85rem",
+                      boxShadow: filterVisaCategory === "all" ? "0 2px 8px rgba(99, 102, 241, 0.3)" : "none",
+                      transition: "all 0.15s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span>সকল আবেদন</span>
+                    <span
+                      style={{
+                        padding: "1px 6px",
+                        borderRadius: "10px",
+                        background: filterVisaCategory === "all" ? "rgba(255, 255, 255, 0.25)" : "rgba(0,0,0,0.06)",
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {visaStats.total}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterVisaCategory("individual")}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: filterVisaCategory === "individual" ? "#10b981" : "transparent",
+                      color: filterVisaCategory === "individual" ? "#fff" : "var(--text-secondary)",
+                      fontWeight: filterVisaCategory === "individual" ? 800 : 600,
+                      cursor: "pointer",
+                      fontSize: "0.85rem",
+                      boxShadow: filterVisaCategory === "individual" ? "0 2px 8px rgba(16, 185, 129, 0.3)" : "none",
+                      transition: "all 0.15s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <UserIcon size={14} />
+                    <span>একক আবেদন</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterVisaCategory("family_group")}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: filterVisaCategory === "family_group" ? "#0284c7" : "transparent",
+                      color: filterVisaCategory === "family_group" ? "#fff" : "var(--text-secondary)",
+                      fontWeight: filterVisaCategory === "family_group" ? 800 : 600,
+                      cursor: "pointer",
+                      fontSize: "0.85rem",
+                      boxShadow: filterVisaCategory === "family_group" ? "0 2px 8px rgba(2, 132, 199, 0.3)" : "none",
+                      transition: "all 0.15s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <Users size={14} />
+                    <span>ফ্যামিলি / গ্রুপ আবেদন</span>
+                  </button>
+                </div>
+
+                <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+                  মোট ফলাফল: <strong style={{ color: "var(--text-main)" }}>{visaTotalMatching}</strong> টি রেকর্ড
+                </div>
+              </div>
+
+              {/* Row 2: Search, Status Filter & Actions */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    fetchVisaApplications(1, visaPageSize, searchVisa, filterVisaStatus, filterVisaCategory);
+                  }}
+                  style={{ display: "flex", gap: "10px", flex: 1, minWidth: "280px" }}
+                >
+                  <div style={{ position: "relative", flex: 1 }}>
+                    <Search
+                      size={16}
+                      style={{
+                        position: "absolute",
+                        left: "14px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        color: "var(--text-muted)",
+                      }}
+                    />
+                    <input
+                      type="text"
+                      value={searchVisa}
+                      onChange={(e) => setSearchVisa(e.target.value)}
+                      placeholder="আবেদনকারীর নাম, পাসপোর্ট নং, মোবাইল নম্বর, বা ট্র্যাকিং আইডি..."
+                      className="input-field"
+                      style={{ paddingLeft: "38px", height: "42px", fontSize: "0.88rem", borderRadius: "8px" }}
+                    />
+                    {searchVisa && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchVisa("");
+                          fetchVisaApplications(1, visaPageSize, "", filterVisaStatus, filterVisaCategory);
+                        }}
+                        style={{
+                          position: "absolute",
+                          right: "10px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--text-muted)",
+                          cursor: "pointer",
+                          fontSize: "0.9rem",
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <button type="submit" className="btn-secondary" style={{ height: "42px", padding: "0 20px", fontWeight: 700 }}>
+                    খুঁজুন
+                  </button>
+                </form>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                      স্ট্যাটাস ফিল্টার:
+                    </span>
+                    <select
+                      value={filterVisaStatus}
+                      onChange={(e) => setFilterVisaStatus(e.target.value)}
+                      className="input-field"
+                      style={{ width: "auto", height: "42px", fontSize: "0.85rem", padding: "0 12px", borderRadius: "8px" }}
+                    >
+                      <option value="all">সকল স্ট্যাটাস</option>
+                      <optgroup label="সাধারণ স্ট্যাটাস">
+                        {VISA_GENERAL_STATUSES.map((st) => (
+                          <option key={st.value} value={st.value}>
+                            {st.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="মেডিকেল / আয়ুষ স্পেশাল">
+                        {VISA_MEDICAL_STATUSES.map((st) => (
+                          <option key={st.value} value={st.value}>
+                            {st.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Visa Applications Table */}
-            <div className="glass-panel" style={{ overflow: "hidden" }}>
+            {/* Visa Applications Table Card */}
+            <div
+              className="glass-panel"
+              style={{
+                borderRadius: "14px",
+                overflow: "hidden",
+                border: "1px solid var(--border-subtle)",
+                background: "var(--bg-surface)",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
+              }}
+            >
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.88rem" }}>
                   <thead>
-                    <tr style={{ background: "rgba(255, 255, 255, 0.03)", borderBottom: "1px solid var(--border-subtle)" }}>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>ট্র্যাকিং আইডি</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>আবেদনকারীর নাম</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>পাসপোর্ট নং</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>মোবাইল নম্বর</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>সার্ভিস ধরন</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>বকেয়া টাকা</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>স্ট্যাটাস</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>তৈরি করেছেন</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)" }}>সর্বশেষ আপডেট</th>
-                      <th style={{ padding: "14px 18px", color: "var(--text-muted)", textAlign: "right" }}>একশন</th>
+                    <tr
+                      style={{
+                        background: "var(--table-head-bg, #f8fafc)",
+                        borderBottom: "2px solid var(--border-subtle)",
+                      }}
+                    >
+                      <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>ট্র্যাকিং ও তারিখ</th>
+                      <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", minWidth: "190px" }}>আবেদনকারী ও ধরন</th>
+                      <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>পাসপোর্ট ও যোগাযোগ</th>
+                      <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", minWidth: "140px" }}>সার্ভিস ধরন</th>
+                      <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>চুক্তি ও বকেয়া</th>
+                      <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap", width: "160px" }}>স্ট্যাটাস</th>
+                      <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>তৈরি করেছেন</th>
+                      <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", textAlign: "right", whiteSpace: "nowrap" }}>একশন</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loadingVisa ? (
                       <tr>
-                        <td colSpan={10} style={{ padding: "60px 20px", textAlign: "center" }}>
+                        <td colSpan={8} style={{ padding: "60px 20px", textAlign: "center" }}>
                           <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
                             <div
                               style={{
@@ -1687,7 +1852,7 @@ export default function Dashboard() {
                       </tr>
                     ) : applications.length === 0 ? (
                       <tr>
-                        <td colSpan={10} style={{ padding: "50px 20px", textAlign: "center", color: "var(--text-muted)" }}>
+                        <td colSpan={8} style={{ padding: "50px 20px", textAlign: "center", color: "var(--text-muted)" }}>
                           <div style={{ marginBottom: "12px", fontSize: "1.05rem" }}>কোনো ভিসা আবেদন পাওয়া যায়নি।</div>
                           <button onClick={() => setShowAddVisaModal(true)} className="btn-primary btn-sm">
                             + নতুন ভিসা আবেদন যুক্ত করুন
@@ -1696,205 +1861,419 @@ export default function Dashboard() {
                       </tr>
                     ) : (
                       applications.map((app) => {
-                      const total = app.totalAmount ?? app.feeAmount ?? 0;
-                      const paid = app.paidAmount ?? (app.feeStatus === "paid" ? total : 0);
-                      const due = app.dueAmount ?? Math.max(0, total - paid);
-                      const serviceLabel =
-                        app.serviceType === "tourist_visa"
-                          ? "ট্যুরিস্ট ভিসা"
-                          : app.serviceType === "medical_visa"
-                          ? "মেডিকেল ভিসা"
-                          : app.serviceType === "medical_attendant"
-                          ? "মেডিকেল এটেন্ডেন্ট"
-                          : app.serviceType === "student_visa"
-                          ? "স্টুডেন্ট ভিসা"
-                          : app.serviceType === "work_permit"
-                          ? "ওয়ার্ক পারমিট"
-                          : app.serviceType === "business_visa"
-                          ? "বিজনেস ভিসা"
-                          : app.serviceType;
+                        const total = app.totalAmount ?? app.feeAmount ?? 0;
+                        const paid = app.paidAmount ?? (app.feeStatus === "paid" ? total : 0);
+                        const due = app.dueAmount ?? Math.max(0, total - paid);
+                        const serviceLabel =
+                          app.serviceType === "tourist_visa"
+                            ? "ট্যুরিস্ট ভিসা"
+                            : app.serviceType === "medical_visa"
+                            ? "মেডিকেল ভিসা"
+                            : app.serviceType === "medical_attendant"
+                            ? "মেডিকেল এটেন্ডেন্ট"
+                            : app.serviceType === "student_visa"
+                            ? "স্টুডেন্ট ভিসা"
+                            : app.serviceType === "work_permit"
+                            ? "ওয়ার্ক পারমিট"
+                            : app.serviceType === "business_visa"
+                            ? "বিজনেস ভিসা"
+                            : app.serviceType;
 
-                      const creator =
-                        typeof app.createdBy === "object" && app.createdBy?.name
-                          ? app.createdBy.name
-                          : app.createdByName || "সিস্টেম";
-                      const createDate = app.createdAt
-                        ? new Date(app.createdAt).toLocaleDateString("bn-BD", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "—";
+                        const creator =
+                          typeof app.createdBy === "object" && app.createdBy?.name
+                            ? app.createdBy.name
+                            : app.createdByName || "সিস্টেম";
+                        const createDate = app.createdAt
+                          ? new Date(app.createdAt).toLocaleDateString("bn-BD", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "—";
 
-                      const updater =
-                        typeof app.updatedBy === "object" && app.updatedBy?.name
-                          ? app.updatedBy.name
-                          : app.updatedByName;
-                      const updateDate = app.updatedAt
-                        ? new Date(app.updatedAt).toLocaleDateString("bn-BD", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : null;
+                        const updater =
+                          typeof app.updatedBy === "object" && app.updatedBy?.name
+                            ? app.updatedBy.name
+                            : app.updatedByName;
 
-                      return (
-                        <tr key={app._id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                          <td style={{ padding: "14px 18px", fontWeight: 700, color: "#38bdf8" }}>{app.trackingId}</td>
-                          <td style={{ padding: "14px 18px", fontWeight: 600 }}>
-                            {app.applicationCategory === "family_group" ? (
-                              <div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                                  <span>{app.applicantName}</span>
+                        return (
+                          <tr
+                            key={app._id}
+                            style={{
+                              borderBottom: "1px solid var(--border-subtle)",
+                              transition: "background 0.15s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = "var(--bg-card-hover, rgba(99, 102, 241, 0.02))";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = "transparent";
+                            }}
+                          >
+                            {/* Col 1: Tracking ID & Received Date */}
+                            <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                              <div
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  padding: "4px 9px",
+                                  borderRadius: "6px",
+                                  background: "rgba(14, 165, 233, 0.08)",
+                                  border: "1px solid rgba(14, 165, 233, 0.25)",
+                                  color: "#0284c7",
+                                  fontWeight: 800,
+                                  fontFamily: "var(--font-mono, monospace)",
+                                  fontSize: "0.85rem",
+                                }}
+                              >
+                                {app.trackingId}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "0.74rem",
+                                  color: "var(--text-muted)",
+                                  marginTop: "5px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                <Calendar size={12} style={{ opacity: 0.7 }} />
+                                <span>রিসিভ: {app.receivedDate || createDate}</span>
+                              </div>
+                            </td>
+
+                            {/* Col 2: Applicant Name & Category Badges */}
+                            <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                              <div style={{ fontWeight: 700, color: "var(--text-main)", fontSize: "0.92rem", lineHeight: 1.35 }}>
+                                {app.applicantName}
+                              </div>
+                              {app.applicationCategory === "family_group" ? (
+                                <div style={{ marginTop: "5px" }}>
                                   {app.isFamilyHead ? (
                                     <span
                                       style={{
-                                        fontSize: "0.68rem",
-                                        padding: "2px 6px",
-                                        borderRadius: "4px",
-                                        background: "rgba(99, 102, 241, 0.18)",
-                                        color: "#a5b4fc",
-                                        border: "1px solid rgba(99, 102, 241, 0.35)",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                        fontSize: "0.72rem",
+                                        padding: "3px 9px",
+                                        borderRadius: "9999px",
+                                        background: "rgba(99, 102, 241, 0.1)",
+                                        color: "#4f46e5",
+                                        border: "1px solid rgba(99, 102, 241, 0.25)",
                                         fontWeight: 700,
+                                        whiteSpace: "nowrap",
                                       }}
                                     >
                                       👨‍👩‍👧‍👦 ফ্যামিলি প্যাকেজ ({app.familyMemberCount || 1} জন)
                                     </span>
                                   ) : (
-                                    <span
-                                      style={{
-                                        fontSize: "0.68rem",
-                                        padding: "2px 6px",
-                                        borderRadius: "4px",
-                                        background: "rgba(56, 189, 248, 0.12)",
-                                        color: "#38bdf8",
-                                        border: "1px solid rgba(56, 189, 248, 0.25)",
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      🔗 ফ্যামিলি সদস্য ({app.familyRelation || "সদস্য"})
-                                    </span>
+                                    <div>
+                                      <span
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "4px",
+                                          fontSize: "0.72rem",
+                                          padding: "3px 9px",
+                                          borderRadius: "9999px",
+                                          background: "rgba(14, 165, 233, 0.1)",
+                                          color: "#0284c7",
+                                          border: "1px solid rgba(14, 165, 233, 0.25)",
+                                          fontWeight: 600,
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        🔗 {app.familyRelation || "ফ্যামিলি সদস্য"}
+                                      </span>
+                                      {app.familyHeadName && (
+                                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "3px" }}>
+                                          বিল প্রধান: <strong>{app.familyHeadName}</strong> ({app.familyHeadTrackingId})
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
-                                {!app.isFamilyHead && app.familyHeadName && (
-                                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                                    বিল প্রধান: {app.familyHeadName} ({app.familyHeadTrackingId})
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              app.applicantName
-                            )}
-                          </td>
-                          <td style={{ padding: "14px 18px", fontFamily: "monospace", fontWeight: 700, color: "var(--text-main)" }}>
-                            {app.passportNumber}
-                          </td>
-                          <td style={{ padding: "14px 18px", fontWeight: 500, color: "var(--text-secondary)" }}>
-                            {app.phone}
-                          </td>
-                          <td style={{ padding: "14px 18px" }}>
-                            <div style={{ fontWeight: 600, color: "var(--primary-light, #818cf8)" }}>
-                              {serviceLabel}
-                            </div>
-                            {app.visaType && (
+                              ) : (
+                                <div style={{ marginTop: "5px" }}>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      fontSize: "0.72rem",
+                                      padding: "3px 9px",
+                                      borderRadius: "9999px",
+                                      background: "rgba(16, 185, 129, 0.1)",
+                                      color: "#059669",
+                                      border: "1px solid rgba(16, 185, 129, 0.25)",
+                                      fontWeight: 700,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    👤 একক আবেদন (Single)
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Col 3: Passport & Contact */}
+                            <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
                               <div
                                 style={{
-                                  fontSize: "0.74rem",
-                                  color: "var(--text-muted)",
-                                  maxWidth: "220px",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                  marginTop: "2px",
+                                  display: "inline-flex",
+                                  fontFamily: "var(--font-mono, monospace)",
+                                  fontWeight: 700,
+                                  fontSize: "0.85rem",
+                                  color: "var(--text-main)",
+                                  background: "var(--bg-subtle-box, #f1f5f9)",
+                                  padding: "2px 7px",
+                                  borderRadius: "4px",
+                                  border: "1px solid var(--border-subtle)",
+                                  letterSpacing: "0.04em",
                                 }}
-                                title={app.visaType}
                               >
-                                {formatVisaTypeDisplay(app.visaType)}
+                                {app.passportNumber}
                               </div>
-                            )}
-                          </td>
-                          <td style={{ padding: "14px 18px", fontWeight: 700, color: due > 0 ? "#fbbf24" : "#34d399" }}>
-                            {app.applicationCategory === "family_group" && !app.isFamilyHead ? (
-                              <span style={{ fontSize: "0.78rem", color: "#38bdf8", fontWeight: 600 }}>
-                                (যৌথ বিলে)
-                              </span>
-                            ) : (
-                              `৳ ${due.toLocaleString("en-IN")}`
-                            )}
-                          </td>
-                          <td style={{ padding: "14px 18px" }}>
-                            <select
-                              value={app.status}
-                              onChange={(e) => handleVisaStatusChange(app._id, e.target.value)}
-                              style={{
-                                background: getStatusBadge(app.status).bg,
-                                color: getStatusBadge(app.status).color,
-                                border: "1px solid rgba(255, 255, 255, 0.1)",
-                                padding: "5px 10px",
-                                borderRadius: "var(--radius-sm)",
-                                fontSize: "0.76rem",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                              }}
-                            >
-                              {getAvailableVisaStatuses(app.serviceType, app.visaType, app.status).map((st) => (
-                                <option key={st.value} value={st.value}>
-                                  {st.label}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          {/* Created By Column */}
-                          <td style={{ padding: "14px 18px", fontSize: "0.82rem" }}>
-                            <div style={{ fontWeight: 600, color: "#38bdf8" }}>{creator}</div>
-                            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                              {createDate}
-                            </div>
-                          </td>
-                          {/* Updated By Column */}
-                          <td style={{ padding: "14px 18px", fontSize: "0.82rem" }}>
-                            {updater && updateDate ? (
-                              <>
-                                <div style={{ fontWeight: 600, color: "#a78bfa" }}>{updater}</div>
-                                <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                                  {updateDate}
+                              <div
+                                style={{
+                                  fontSize: "0.78rem",
+                                  color: "var(--text-secondary)",
+                                  marginTop: "5px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                <Phone size={12} style={{ opacity: 0.6 }} />
+                                <span>{app.phone}</span>
+                              </div>
+                            </td>
+
+                            {/* Col 4: Service & Details */}
+                            <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                              <div style={{ fontWeight: 700, color: "var(--text-main)", fontSize: "0.86rem" }}>
+                                {serviceLabel}
+                              </div>
+                              {app.visaType && (
+                                <div
+                                  style={{
+                                    fontSize: "0.74rem",
+                                    color: "var(--text-muted)",
+                                    maxWidth: "200px",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    marginTop: "3px",
+                                  }}
+                                  title={app.visaType}
+                                >
+                                  {formatVisaTypeDisplay(app.visaType)}
                                 </div>
-                              </>
-                            ) : (
-                              <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>—</span>
-                            )}
-                          </td>
-                          <td style={{ padding: "14px 18px", textAlign: "right" }}>
-                            <div style={{ display: "inline-flex", gap: "6px" }}>
-                              <button
-                                onClick={() => setSelectedVisa(app)}
-                                className="btn-secondary btn-sm"
-                                style={{ padding: "5px 8px" }}
-                                title="বিস্তারিত দেখুন"
-                              >
-                                <Eye size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleOpenEditVisa(app)}
-                                className="btn-secondary btn-sm"
-                                style={{ padding: "5px 8px", color: "#38bdf8" }}
-                                title="এডিট করুন"
-                              >
-                                <Edit size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteVisa(app._id)}
-                                className="btn-secondary btn-sm btn-danger"
-                                style={{ padding: "5px 8px" }}
-                                title="মুছে ফেলুন"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    }))}
+                              )}
+                            </td>
+
+                            {/* Col 5: Financials & Due */}
+                            <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                              {app.applicationCategory === "family_group" && !app.isFamilyHead ? (
+                                <div
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    padding: "4px 8px",
+                                    borderRadius: "6px",
+                                    background: "rgba(14, 165, 233, 0.08)",
+                                    color: "#0284c7",
+                                    fontSize: "0.75rem",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  🤝 যৌথ বিলে
+                                </div>
+                              ) : due === 0 ? (
+                                <div>
+                                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#059669", fontWeight: 800, fontSize: "0.86rem" }}>
+                                    <CheckCircle2 size={14} />
+                                    <span>পরিশোধিত</span>
+                                  </div>
+                                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                    মোট: ৳ {total.toLocaleString("en-IN")}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div style={{ fontSize: "0.95rem", fontWeight: 900, color: "#d97706" }}>
+                                    ৳ {due.toLocaleString("en-IN")}
+                                    <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#b45309", marginLeft: "4px" }}>বকেয়া</span>
+                                  </div>
+                                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                    মোট ৳{total.toLocaleString("en-IN")} • জমা ৳{paid.toLocaleString("en-IN")}
+                                  </div>
+                                  <div
+                                    style={{
+                                      width: "100%",
+                                      maxWidth: "110px",
+                                      height: "4px",
+                                      background: "rgba(0,0,0,0.06)",
+                                      borderRadius: "2px",
+                                      marginTop: "4px",
+                                      overflow: "hidden",
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        width: `${Math.min(100, Math.round((paid / (total || 1)) * 100))}%`,
+                                        height: "100%",
+                                        background: "#10b981",
+                                        borderRadius: "2px",
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Col 6: Status Select (Uniform Width) */}
+                            <td style={{ padding: "12px 14px", verticalAlign: "middle", width: "160px" }}>
+                              {(() => {
+                                const badgeStyle = getStatusBadge(app.status);
+                                return (
+                                  <div style={{ position: "relative", width: "148px", maxWidth: "148px" }}>
+                                    <select
+                                      value={app.status}
+                                      onChange={(e) => handleVisaStatusChange(app._id, e.target.value)}
+                                      title="স্ট্যাটাস পরিবর্তন করুন"
+                                      style={{
+                                        width: "148px",
+                                        background: badgeStyle.bg,
+                                        color: badgeStyle.color,
+                                        border: `1px solid ${badgeStyle.border || "rgba(0,0,0,0.1)"}`,
+                                        padding: "6px 26px 6px 12px",
+                                        borderRadius: "20px",
+                                        fontSize: "0.78rem",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                        appearance: "none",
+                                        WebkitAppearance: "none",
+                                        MozAppearance: "none",
+                                        outline: "none",
+                                        boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                                        whiteSpace: "nowrap",
+                                        textOverflow: "ellipsis",
+                                        overflow: "hidden",
+                                        display: "block",
+                                        boxSizing: "border-box",
+                                      }}
+                                    >
+                                      {getAvailableVisaStatuses(app.serviceType, app.visaType, app.status).map((st) => (
+                                        <option key={st.value} value={st.value} style={{ background: "var(--bg-surface, #ffffff)", color: "var(--text-main, #0f172a)" }}>
+                                          {st.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <ChevronDown
+                                      size={13}
+                                      style={{
+                                        position: "absolute",
+                                        right: "9px",
+                                        top: "50%",
+                                        transform: "translateY(-50%)",
+                                        color: badgeStyle.color,
+                                        pointerEvents: "none",
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              })()}
+                            </td>
+
+                            {/* Col 7: Created By & Audit */}
+                            <td style={{ padding: "12px 14px", fontSize: "0.8rem", verticalAlign: "middle" }}>
+                              <div style={{ fontWeight: 600, color: "var(--text-main)", display: "flex", alignItems: "center", gap: "4px" }}>
+                                <UserIcon size={12} style={{ color: "#6366f1" }} />
+                                <span>{creator}</span>
+                              </div>
+                              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                                {createDate}
+                              </div>
+                              {updater && (
+                                <div style={{ fontSize: "0.68rem", color: "#8b5cf6", marginTop: "2px" }}>
+                                  এডিট: {updater}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Col 8: Action Buttons */}
+                            <td style={{ padding: "12px 14px", textAlign: "right", verticalAlign: "middle" }}>
+                              <div style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
+                                <button
+                                  onClick={() => setSelectedVisa(app)}
+                                  style={{
+                                    width: "32px",
+                                    height: "32px",
+                                    borderRadius: "7px",
+                                    border: "1px solid var(--border-subtle)",
+                                    background: "var(--bg-subtle-box, rgba(0,0,0,0.02))",
+                                    color: "#0284c7",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: "pointer",
+                                    transition: "all 0.15s ease",
+                                  }}
+                                  title="বিস্তারিত দেখুন"
+                                >
+                                  <Eye size={15} />
+                                </button>
+                                <button
+                                  onClick={() => handleOpenEditVisa(app)}
+                                  style={{
+                                    width: "32px",
+                                    height: "32px",
+                                    borderRadius: "7px",
+                                    border: "1px solid var(--border-subtle)",
+                                    background: "var(--bg-subtle-box, rgba(0,0,0,0.02))",
+                                    color: "#6366f1",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: "pointer",
+                                    transition: "all 0.15s ease",
+                                  }}
+                                  title="এডিট করুন"
+                                >
+                                  <Edit size={15} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteVisa(app._id)}
+                                  style={{
+                                    width: "32px",
+                                    height: "32px",
+                                    borderRadius: "7px",
+                                    border: "1px solid rgba(239, 68, 68, 0.2)",
+                                    background: "rgba(239, 68, 68, 0.05)",
+                                    color: "#ef4444",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: "pointer",
+                                    transition: "all 0.15s ease",
+                                  }}
+                                  title="মুছে ফেলুন"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>

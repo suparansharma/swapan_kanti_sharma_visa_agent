@@ -22,11 +22,13 @@ import {
   ShieldCheck,
   Check,
   FileCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   Loader2,
+  X,
 } from "lucide-react";
 
 export interface PassportEntryItem {
@@ -91,6 +93,7 @@ export default function PassportEntryModule() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterCategory, setFilterCategory] = useState<"all" | "individual" | "family_group">("all");
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -198,12 +201,19 @@ export default function PassportEntryModule() {
   const liveDue = Math.max(0, numTotal - numPaid);
 
   // Fetch entries with pagination
-  const fetchEntries = async (page = currentPage, limit = pageSize, search = searchQuery, statusFilter = filterStatus) => {
+  const fetchEntries = async (
+    page = currentPage,
+    limit = pageSize,
+    search = searchQuery,
+    statusFilter = filterStatus,
+    categoryFilter = filterCategory
+  ) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (search.trim()) params.append("search", search.trim());
       if (statusFilter !== "all") params.append("status", statusFilter);
+      if (categoryFilter !== "all") params.append("category", categoryFilter);
       params.append("page", page.toString());
       params.append("limit", limit.toString());
 
@@ -226,18 +236,18 @@ export default function PassportEntryModule() {
   };
 
   useEffect(() => {
-    fetchEntries(1, pageSize, searchQuery, filterStatus);
-  }, [filterStatus, pageSize]);
+    fetchEntries(1, pageSize, searchQuery, filterStatus, filterCategory);
+  }, [filterStatus, filterCategory, pageSize]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchEntries(1, pageSize, searchQuery, filterStatus);
+    fetchEntries(1, pageSize, searchQuery, filterStatus, filterCategory);
   };
 
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > totalPages || newPage === currentPage) return;
     setCurrentPage(newPage);
-    fetchEntries(newPage, pageSize, searchQuery, filterStatus);
+    fetchEntries(newPage, pageSize, searchQuery, filterStatus, filterCategory);
   };
 
   // Submit Add Entry Form
@@ -511,17 +521,17 @@ export default function PassportEntryModule() {
   const getStatusBadge = (s: string) => {
     switch (s) {
       case "submitted":
-        return { label: "আবেদন জমা", bg: "rgba(99, 102, 241, 0.15)", color: "#818cf8" };
+        return { label: "আবেদন জমা", bg: "rgba(99, 102, 241, 0.1)", color: "#4f46e5", border: "rgba(99, 102, 241, 0.3)" };
       case "biometric_pending":
-        return { label: "বায়োমেট্রিক বাকি", bg: "rgba(236, 72, 153, 0.15)", color: "#f472b6" };
+        return { label: "বায়োমেট্রিক বাকি", bg: "rgba(236, 72, 153, 0.1)", color: "#db2777", border: "rgba(236, 72, 153, 0.3)" };
       case "police_verification":
-        return { label: "পুলিশ ভেরিফিকেশন", bg: "rgba(245, 158, 11, 0.15)", color: "#fbbf24" };
+        return { label: "পুলিশ ভেরিফিকেশন", bg: "rgba(245, 158, 11, 0.12)", color: "#d97706", border: "rgba(245, 158, 11, 0.35)" };
       case "ready_for_pickup":
-        return { label: "পাসপোর্ট রেডি", bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
+        return { label: "পাসপোর্ট রেডি", bg: "rgba(16, 185, 129, 0.12)", color: "#059669", border: "rgba(16, 185, 129, 0.35)" };
       case "delivered":
-        return { label: "ডেলিভারি সম্পন্ন", bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" };
+        return { label: "ডেলিভারি সম্পন্ন", bg: "rgba(59, 130, 246, 0.12)", color: "#2563eb", border: "rgba(59, 130, 246, 0.35)" };
       default:
-        return { label: s, bg: "rgba(255, 255, 255, 0.1)", color: "#ffffff" };
+        return { label: s, bg: "rgba(100, 116, 139, 0.1)", color: "#475569", border: "rgba(100, 116, 139, 0.25)" };
     }
   };
 
@@ -653,99 +663,272 @@ export default function PassportEntryModule() {
       <div
         className="glass-panel"
         style={{
-          padding: "16px 20px",
+          padding: "20px",
           display: "flex",
-          gap: "14px",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
+          flexDirection: "column",
+          gap: "16px",
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border-subtle)",
+          borderRadius: "14px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.02)",
         }}
       >
-        <form onSubmit={handleSearchSubmit} style={{ display: "flex", gap: "10px", flex: 1, minWidth: "260px" }}>
-          <div style={{ position: "relative", flex: 1 }}>
-            <Search
-              size={16}
-              style={{
-                position: "absolute",
-                left: "12px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "var(--text-muted)",
+        {/* Row 1: Category Segmented Switcher & Quick Counter */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              display: "inline-flex",
+              background: "var(--bg-subtle-box, #f1f5f9)",
+              borderRadius: "10px",
+              padding: "4px",
+              border: "1px solid var(--border-subtle)",
+              gap: "4px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setFilterCategory("all");
+                setCurrentPage(1);
+                fetchEntries(1, pageSize, searchQuery, filterStatus, "all");
               }}
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="আবেদনকারীর নাম, মোবাইল নম্বর, NID, বা এন্ট্রি নং দিয়ে খুঁজুন..."
-              className="input-field"
-              style={{ paddingLeft: "36px", height: "42px", fontSize: "0.88rem" }}
-            />
-          </div>
-          <button type="submit" className="btn-secondary btn-sm" style={{ height: "42px", padding: "0 18px" }}>
-            খুঁজুন
-          </button>
-        </form>
+              style={{
+                padding: "8px 16px",
+                borderRadius: "8px",
+                border: "none",
+                background: filterCategory === "all" ? "var(--primary-gradient)" : "transparent",
+                color: filterCategory === "all" ? "#fff" : "var(--text-secondary)",
+                fontWeight: filterCategory === "all" ? 800 : 600,
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                boxShadow: filterCategory === "all" ? "0 2px 8px rgba(99, 102, 241, 0.3)" : "none",
+                transition: "all 0.15s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <span>সকল এন্ট্রি</span>
+              <span
+                style={{
+                  padding: "1px 6px",
+                  borderRadius: "10px",
+                  background: filterCategory === "all" ? "rgba(255, 255, 255, 0.25)" : "rgba(0,0,0,0.06)",
+                  fontSize: "0.72rem",
+                  fontWeight: 700,
+                }}
+              >
+                {stats.total}
+              </span>
+            </button>
 
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>স্ট্যাটাস:</span>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="input-field"
-            style={{ height: "42px", fontSize: "0.85rem", width: "auto", padding: "0 14px" }}
-          >
-            <option value="all">সকল এন্ট্রি</option>
-            <option value="submitted">আবেদন জমা</option>
-            <option value="biometric_pending">বায়োমেট্রিক বাকি</option>
-            <option value="police_verification">পুলিশ ভেরিফিকেশন</option>
-            <option value="ready_for_pickup">পাসপোর্ট রেডি</option>
-            <option value="delivered">ডেলিভারি সম্পন্ন</option>
-          </select>
-          <button
-            onClick={() => fetchEntries(currentPage, pageSize, searchQuery, filterStatus)}
-            disabled={loading}
-            className="btn-secondary btn-sm"
-            style={{ height: "42px", padding: "0 14px", display: "inline-flex", alignItems: "center", gap: "6px" }}
-            title="রিফ্রেশ করুন"
-          >
-            <RefreshCw size={14} className={loading ? "spin" : ""} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
-            <span>রিফ্রেশ</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterCategory("individual");
+                setCurrentPage(1);
+                fetchEntries(1, pageSize, searchQuery, filterStatus, "individual");
+              }}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "8px",
+                border: "none",
+                background: filterCategory === "individual" ? "#10b981" : "transparent",
+                color: filterCategory === "individual" ? "#fff" : "var(--text-secondary)",
+                fontWeight: filterCategory === "individual" ? 800 : 600,
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                boxShadow: filterCategory === "individual" ? "0 2px 8px rgba(16, 185, 129, 0.3)" : "none",
+                transition: "all 0.15s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <UserIcon size={14} />
+              <span>একক আবেদন</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFilterCategory("family_group");
+                setCurrentPage(1);
+                fetchEntries(1, pageSize, searchQuery, filterStatus, "family_group");
+              }}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "8px",
+                border: "none",
+                background: filterCategory === "family_group" ? "#0284c7" : "transparent",
+                color: filterCategory === "family_group" ? "#fff" : "var(--text-secondary)",
+                fontWeight: filterCategory === "family_group" ? 800 : 600,
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                boxShadow: filterCategory === "family_group" ? "0 2px 8px rgba(2, 132, 199, 0.3)" : "none",
+                transition: "all 0.15s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <Users size={14} />
+              <span>ফ্যামিলি / গ্রুপ আবেদন</span>
+            </button>
+          </div>
+
+          <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+            মোট ফলাফল: <strong style={{ color: "var(--text-main)" }}>{totalMatching}</strong> টি রেকর্ড
+          </div>
+        </div>
+
+        {/* Row 2: Search, Status Filter & Actions */}
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <form onSubmit={handleSearchSubmit} style={{ display: "flex", gap: "10px", flex: 1, minWidth: "280px" }}>
+            <div style={{ position: "relative", flex: 1 }}>
+              <Search
+                size={16}
+                style={{
+                  position: "absolute",
+                  left: "14px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "var(--text-muted)",
+                }}
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="আবেদনকারীর নাম, মোবাইল নম্বর, NID, বা এন্ট্রি নং দিয়ে খুঁজুন..."
+                className="input-field"
+                style={{ paddingLeft: "38px", height: "42px", fontSize: "0.88rem", borderRadius: "8px" }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setCurrentPage(1);
+                    fetchEntries(1, pageSize, "", filterStatus, filterCategory);
+                  }}
+                  style={{
+                    position: "absolute",
+                    right: "10px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--text-muted)",
+                    cursor: "pointer",
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <button type="submit" className="btn-secondary" style={{ height: "42px", padding: "0 20px", fontWeight: 700 }}>
+              খুঁজুন
+            </button>
+          </form>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                স্ট্যাটাস ফিল্টার:
+              </span>
+              <select
+                value={filterStatus}
+                onChange={(e) => {
+                  setFilterStatus(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="input-field"
+                style={{ width: "auto", height: "42px", fontSize: "0.85rem", padding: "0 12px", borderRadius: "8px" }}
+              >
+                <option value="all">সকল স্ট্যাটাস</option>
+                <option value="submitted">আবেদন জমা</option>
+                <option value="biometric_pending">বায়োমেট্রিক বাকি</option>
+                <option value="police_verification">পুলিশ ভেরিফিকেশন</option>
+                <option value="ready_for_pickup">পাসপোর্ট রেডি</option>
+                <option value="delivered">ডেলিভারি সম্পন্ন</option>
+              </select>
+            </div>
+            <button
+              onClick={() => fetchEntries(currentPage, pageSize, searchQuery, filterStatus, filterCategory)}
+              disabled={loading}
+              className="btn-secondary"
+              style={{ height: "42px", padding: "0 16px", display: "inline-flex", alignItems: "center", gap: "6px" }}
+              title="রিফ্রেশ করুন"
+            >
+              <RefreshCw size={14} className={loading ? "spin" : ""} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+              <span>রিফ্রেশ</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* PASSPORT ENTRIES DATA TABLE */}
-      <div className="glass-panel" style={{ overflow: "hidden" }}>
+      <div
+        className="glass-panel"
+        style={{
+          borderRadius: "14px",
+          overflow: "hidden",
+          border: "1px solid var(--border-subtle)",
+          background: "var(--bg-surface)",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
+        }}
+      >
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.88rem" }}>
             <thead>
-              <tr style={{ background: "rgba(255, 255, 255, 0.03)", borderBottom: "1px solid var(--border-subtle)" }}>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>এন্ট্রি নং</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>আবেদনকারীর নাম</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>মোবাইল ও ইমেইল</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>NID ও জন্মতারিখ</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>পাসপোর্ট ধরন</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>Online Track ID</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>বকেয়া টাকা</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>স্ট্যাটাস</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>তৈরি করেছেন</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600 }}>সর্বশেষ আপডেট</th>
-                <th style={{ padding: "14px 18px", color: "var(--text-muted)", fontWeight: 600, textAlign: "right" }}>একশন</th>
+              <tr
+                style={{
+                  background: "var(--table-head-bg, #f8fafc)",
+                  borderBottom: "2px solid var(--border-subtle)",
+                }}
+              >
+                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>এন্ট্রি ও তারিখ</th>
+                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", minWidth: "180px" }}>আবেদনকারী ও ধরন</th>
+                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>মোবাইল ও ইমেইল</th>
+                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>NID ও জন্মতারিখ</th>
+                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", minWidth: "160px" }}>পাসপোর্ট ধরন</th>
+                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>Online Track ID</th>
+                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>চুক্তি ও বকেয়া</th>
+                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap", width: "160px" }}>স্ট্যাটাস</th>
+                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>তৈরি করেছেন</th>
+                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", textAlign: "right", whiteSpace: "nowrap" }}>একশন</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: "60px 20px", textAlign: "center" }}>
+                  <td colSpan={10} style={{ padding: "60px 20px", textAlign: "center" }}>
                     <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
                       <div
                         style={{
                           width: "42px",
                           height: "42px",
                           borderRadius: "50%",
-                          border: "3px solid rgba(56, 189, 248, 0.2)",
-                          borderTopColor: "#38bdf8",
+                          border: "3px solid rgba(99, 102, 241, 0.2)",
+                          borderTopColor: "var(--primary, #6366f1)",
                           animation: "spin 0.8s linear infinite",
                         }}
                       />
@@ -767,359 +950,555 @@ export default function PassportEntryModule() {
                 </tr>
               ) : entries.length === 0 ? (
                 <tr>
-                  <td colSpan={11} style={{ padding: "50px", textAlign: "center", color: "var(--text-muted)" }}>
-                    <div style={{ marginBottom: "12px", fontSize: "1.1rem" }}>কোনো পাসপোর্ট এন্ট্রি পাওয়া যায়নি।</div>
+                  <td colSpan={10} style={{ padding: "50px 20px", textAlign: "center", color: "var(--text-muted)" }}>
+                    <div style={{ marginBottom: "12px", fontSize: "1.05rem" }}>কোনো পাসপোর্ট এন্ট্রি পাওয়া যায়নি।</div>
                     <button onClick={() => setShowAddModal(true)} className="btn-primary btn-sm">
                       + প্রথম এন্ট্রি যুক্ত করুন
                     </button>
                   </td>
                 </tr>
               ) : (
-                entries.map((item) => (
-                  <tr
-                    key={item._id}
-                    style={{
-                      borderBottom: "1px solid var(--border-subtle)",
-                      transition: "background 0.15s",
-                    }}
-                  >
-                    {/* Entry Number */}
-                    <td style={{ padding: "14px 18px" }}>
-                      <div style={{ fontWeight: 800, color: "#38bdf8" }}>{item.entryNumber}</div>
-                      <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                        {new Date(item.createdAt).toLocaleDateString("bn-BD")}
-                      </div>
-                    </td>
+                entries.map((item) => {
+                  const creator =
+                    typeof item.createdBy === "object" && item.createdBy?.name
+                      ? item.createdBy.name
+                      : item.createdByName || "সিস্টেম";
+                  const createDate = item.createdAt
+                    ? new Date(item.createdAt).toLocaleDateString("bn-BD", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "—";
+                  const updater =
+                    typeof item.updatedBy === "object" && item.updatedBy?.name
+                      ? item.updatedBy.name
+                      : item.updatedByName;
 
-                    {/* Name */}
-                    <td style={{ padding: "14px 18px" }}>
-                      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px" }}>
-                        <span style={{ fontWeight: 700, color: "var(--text-main)", fontSize: "0.92rem" }}>
-                          {item.name}
-                        </span>
-                        {item.applicationCategory === "family_group" && (
-                          item.isFamilyHead ? (
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px",
-                                fontSize: "0.72rem",
-                                background: "rgba(56, 189, 248, 0.15)",
-                                color: "#38bdf8",
-                                padding: "2px 6px",
-                                borderRadius: "4px",
-                                fontWeight: 700,
-                              }}
-                              title={`ফ্যামিলি গ্রুপ: ${item.familyGroupId || ""}`}
-                            >
-                              👨‍👩‍👧‍👦 ফ্যামিলি প্যাকেজ ({item.familyMemberCount || 1} জন)
-                            </span>
-                          ) : (
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px",
-                                fontSize: "0.72rem",
-                                background: "rgba(168, 85, 247, 0.15)",
-                                color: "#c084fc",
-                                padding: "2px 6px",
-                                borderRadius: "4px",
-                                fontWeight: 700,
-                              }}
-                              title={`বিল প্রধান: ${item.familyHeadName || "প্রধান"} (${item.familyHeadEntryNumber || ""})`}
-                            >
-                              🔗 {item.familyRelation || "ফ্যামিলি সদস্য"}
-                            </span>
-                          )
-                        )}
-                      </div>
-                      {item.applicationCategory === "family_group" && !item.isFamilyHead && (
-                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                          বিল প্রধান: {item.familyHeadName || "প্রধান"} ({item.familyHeadEntryNumber || ""})
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Mobile & Email */}
-                    <td style={{ padding: "14px 18px" }}>
-                      <div style={{ fontWeight: 600, color: "var(--text-main)" }}>{item.mobile}</div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{item.email || "—"}</div>
-                    </td>
-
-                    {/* NID & Birthdate */}
-                    <td style={{ padding: "14px 18px" }}>
-                      <div style={{ fontFamily: "monospace", fontSize: "0.82rem", color: "#a5b4fc" }}>
-                        {item.nid}
-                      </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                        জন্ম: {item.birthDate}
-                      </div>
-                    </td>
-
-                    {/* Passport Type */}
-                    <td style={{ padding: "14px 18px" }}>
-                      <span
-                        style={{
-                          background: "rgba(255, 255, 255, 0.05)",
-                          padding: "4px 8px",
-                          borderRadius: "4px",
-                          fontSize: "0.78rem",
-                          color: "var(--text-secondary)",
-                        }}
-                      >
-                        {getPassportTypeLabel(item.passportType)}
-                      </span>
-                    </td>
-
-                    {/* Online Track ID (Inline Add / Edit) */}
-                    <td style={{ padding: "12px 16px", minWidth: "160px" }}>
-                      {editingTrackIdRow === item._id ? (
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <input
-                            type="text"
-                            value={tempTrackId}
-                            onChange={(e) => setTempTrackId(e.target.value)}
-                            placeholder="Track ID লিখুন"
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                handleQuickTrackIdSave(item._id, tempTrackId);
-                              } else if (e.key === "Escape") {
-                                setEditingTrackIdRow(null);
-                              }
-                            }}
-                            className="input-field"
-                            style={{
-                              height: "32px",
-                              padding: "4px 8px",
-                              fontSize: "0.8rem",
-                              fontFamily: "monospace",
-                              fontWeight: 700,
-                              textTransform: "uppercase",
-                              width: "120px",
-                            }}
-                          />
-                          <button
-                            onClick={() => handleQuickTrackIdSave(item._id, tempTrackId)}
-                            disabled={savingTrackId === item._id}
-                            className="btn-primary btn-sm"
-                            style={{ padding: "4px 7px", height: "32px" }}
-                            title="সংরক্ষণ করুন"
-                          >
-                            <Check size={13} />
-                          </button>
-                          <button
-                            onClick={() => setEditingTrackIdRow(null)}
-                            className="btn-secondary btn-sm"
-                            style={{ padding: "4px 7px", height: "32px" }}
-                            title="বাতিল"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ) : (
+                  return (
+                    <tr
+                      key={item._id}
+                      style={{
+                        borderBottom: "1px solid var(--border-subtle)",
+                        transition: "background 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "var(--bg-card-hover, rgba(99, 102, 241, 0.02))";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
+                    >
+                      {/* Col 1: Entry Number & Received Date */}
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
                         <div
-                          onClick={() => {
-                            setEditingTrackIdRow(item._id);
-                            setTempTrackId(item.onlineTrackId || "");
-                          }}
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: "6px",
-                            cursor: "pointer",
-                            padding: "4px 8px",
+                            gap: "4px",
+                            padding: "4px 9px",
                             borderRadius: "6px",
-                            background: item.onlineTrackId
-                              ? "rgba(56, 189, 248, 0.1)"
-                              : "rgba(255, 255, 255, 0.04)",
-                            border: item.onlineTrackId
-                              ? "1px solid rgba(56, 189, 248, 0.25)"
-                              : "1px dashed var(--border-subtle)",
-                            transition: "all 0.15s ease",
+                            background: "rgba(14, 165, 233, 0.08)",
+                            border: "1px solid rgba(14, 165, 233, 0.25)",
+                            color: "#0284c7",
+                            fontWeight: 800,
+                            fontFamily: "var(--font-mono, monospace)",
+                            fontSize: "0.85rem",
                           }}
-                          title="Online Track ID যোগ বা পরিবর্তন করতে ক্লিক করুন"
                         >
-                          {item.onlineTrackId ? (
-                            <>
+                          {item.entryNumber}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.74rem",
+                            color: "var(--text-muted)",
+                            marginTop: "5px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <Calendar size={12} style={{ opacity: 0.7 }} />
+                          <span>{item.receivedDate ? `রিসিভ: ${item.receivedDate}` : new Date(item.createdAt).toLocaleDateString("bn-BD")}</span>
+                        </div>
+                      </td>
+
+                      {/* Col 2: Applicant Name & Category Badges */}
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                        <div style={{ fontWeight: 700, color: "var(--text-main)", fontSize: "0.92rem", lineHeight: 1.35 }}>
+                          {item.name}
+                        </div>
+                        {item.applicationCategory === "family_group" ? (
+                          <div style={{ marginTop: "5px" }}>
+                            {item.isFamilyHead ? (
                               <span
                                 style={{
-                                  fontFamily: "monospace",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  fontSize: "0.72rem",
+                                  padding: "3px 9px",
+                                  borderRadius: "9999px",
+                                  background: "rgba(99, 102, 241, 0.1)",
+                                  color: "#4f46e5",
+                                  border: "1px solid rgba(99, 102, 241, 0.25)",
                                   fontWeight: 700,
-                                  color: "#38bdf8",
-                                  fontSize: "0.82rem",
-                                  letterSpacing: "0.5px",
+                                  whiteSpace: "nowrap",
                                 }}
+                                title={`ফ্যামিলি গ্রুপ: ${item.familyGroupId || ""}`}
                               >
-                                {item.onlineTrackId}
+                                👨‍👩‍👧‍👦 ফ্যামিলি প্যাকেজ ({item.familyMemberCount || 1} জন)
                               </span>
-                              <Edit size={12} color="#38bdf8" style={{ opacity: 0.7 }} />
-                            </>
-                          ) : (
+                            ) : (
+                              <div>
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    fontSize: "0.72rem",
+                                    padding: "3px 9px",
+                                    borderRadius: "9999px",
+                                    background: "rgba(14, 165, 233, 0.1)",
+                                    color: "#0284c7",
+                                    border: "1px solid rgba(14, 165, 233, 0.25)",
+                                    fontWeight: 600,
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  🔗 {item.familyRelation || "ফ্যামিলি সদস্য"}
+                                </span>
+                                {item.familyHeadName && (
+                                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "3px" }}>
+                                    বিল প্রধান: <strong>{item.familyHeadName}</strong> ({item.familyHeadEntryNumber})
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: "5px" }}>
                             <span
                               style={{
-                                fontSize: "0.76rem",
-                                color: "var(--text-muted)",
                                 display: "inline-flex",
                                 alignItems: "center",
                                 gap: "4px",
+                                fontSize: "0.72rem",
+                                padding: "3px 9px",
+                                borderRadius: "9999px",
+                                background: "rgba(16, 185, 129, 0.1)",
+                                color: "#059669",
+                                border: "1px solid rgba(16, 185, 129, 0.25)",
+                                fontWeight: 700,
+                                whiteSpace: "nowrap",
                               }}
                             >
-                              <Plus size={12} /> ID যোগ করুন
+                              👤 একক আবেদন (Single)
                             </span>
-                          )}
-                        </div>
-                      )}
-                    </td>
-
-
-
-                    {/* Due Amount */}
-                    <td style={{ padding: "14px 18px" }}>
-                      {item.applicationCategory === "family_group" && !item.isFamilyHead ? (
-                        <div>
-                          <span
-                            style={{
-                              fontSize: "0.76rem",
-                              fontWeight: 600,
-                              color: "#a5b4fc",
-                              background: "rgba(99, 102, 241, 0.1)",
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              display: "inline-block",
-                            }}
-                          >
-                            যৌথ বিলে অন্তর্ভুক্ত
-                          </span>
-                          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                            প্রধান: {item.familyHeadEntryNumber || ""}
                           </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <div
-                            style={{
-                              fontWeight: 800,
-                              color: item.dueAmount > 0 ? "#fbbf24" : "#34d399",
-                              display: "inline-block",
-                              padding: "2px 8px",
-                              borderRadius: "4px",
-                              background: item.dueAmount > 0 ? "rgba(245, 158, 11, 0.12)" : "rgba(16, 185, 129, 0.12)",
-                            }}
-                          >
-                            ৳ {item.dueAmount.toLocaleString("en-IN")}
-                          </div>
-                          {item.applicationCategory === "family_group" && item.isFamilyHead && (
-                            <div style={{ fontSize: "0.7rem", color: "#38bdf8", marginTop: "2px", fontWeight: 600 }}>
-                              যৌথ ফ্যামিলি বিল
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </td>
+                        )}
+                      </td>
 
-                    {/* Status Dropdown */}
-                    <td style={{ padding: "14px 18px" }}>
-                      <select
-                        value={item.status}
-                        onChange={(e) => handleStatusChange(item._id, e.target.value)}
-                        style={{
-                          background: getStatusBadge(item.status).bg,
-                          color: getStatusBadge(item.status).color,
-                          border: "1px solid rgba(255, 255, 255, 0.1)",
-                          padding: "5px 10px",
-                          borderRadius: "var(--radius-sm)",
-                          fontSize: "0.76rem",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        <option value="submitted">আবেদন জমা</option>
-                        <option value="biometric_pending">বায়োমেট্রিক বাকি</option>
-                        <option value="police_verification">পুলিশ ভেরিফিকেশন</option>
-                        <option value="ready_for_pickup">পাসপোর্ট রেডি</option>
-                        <option value="delivered">ডেলিভারি সম্পন্ন</option>
-                      </select>
-                    </td>
-
-                    {/* Created By Column */}
-                    <td style={{ padding: "14px 18px", fontSize: "0.82rem" }}>
-                      <div style={{ fontWeight: 600, color: "#38bdf8" }}>
-                        {typeof item.createdBy === "object" && item.createdBy?.name
-                          ? item.createdBy.name
-                          : item.createdByName || "সিস্টেম"}
-                      </div>
-                      <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                        {item.createdAt
-                          ? new Date(item.createdAt).toLocaleDateString("bn-BD", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "—"}
-                      </div>
-                    </td>
-
-                    {/* Updated By Column */}
-                    <td style={{ padding: "14px 18px", fontSize: "0.82rem" }}>
-                      {(typeof item.updatedBy === "object" && item.updatedBy?.name) || item.updatedByName ? (
-                        <>
-                          <div style={{ fontWeight: 600, color: "#a78bfa" }}>
-                            {typeof item.updatedBy === "object" && item.updatedBy?.name
-                              ? item.updatedBy.name
-                              : item.updatedByName}
-                          </div>
-                          <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                            {item.updatedAt
-                              ? new Date(item.updatedAt).toLocaleDateString("bn-BD", {
-                                  day: "2-digit",
-                                  month: "short",
-                                  year: "numeric",
-                                })
-                              : "—"}
-                          </div>
-                        </>
-                      ) : (
-                        <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>—</span>
-                      )}
-                    </td>
-
-                    {/* Action buttons */}
-                    <td style={{ padding: "14px 18px", textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: "6px" }}>
-                        <button
-                          onClick={() => {
-                            setSelectedEntry(item);
-                            setNewPaidInput(item.paidAmount);
+                      {/* Col 3: Mobile & Email */}
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            color: "var(--text-main)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            fontSize: "0.85rem",
+                            whiteSpace: "nowrap",
                           }}
-                          className="btn-secondary btn-sm"
-                          style={{ padding: "5px 8px" }}
-                          title="বিস্তারিত ও লেনদেন আপডেট"
                         >
-                          <Eye size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleOpenEdit(item)}
-                          className="btn-secondary btn-sm"
-                          style={{ padding: "5px 8px", color: "#38bdf8" }}
-                          title="এডিট করুন"
+                          <Phone size={13} style={{ opacity: 0.65, color: "#6366f1" }} />
+                          <span>{item.mobile}</span>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "var(--text-muted)",
+                            marginTop: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            whiteSpace: "nowrap",
+                            maxWidth: "180px",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                          title={item.email || ""}
                         >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteEntry(item._id)}
-                          className="btn-secondary btn-sm btn-danger"
-                          style={{ padding: "5px 8px" }}
-                          title="মুছে ফেলুন"
+                          {item.email ? (
+                            <>
+                              <Mail size={11} style={{ opacity: 0.6 }} />
+                              <span>{item.email}</span>
+                            </>
+                          ) : (
+                            <span style={{ opacity: 0.5 }}>—</span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Col 4: NID & Birth Date */}
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            fontFamily: "var(--font-mono, monospace)",
+                            fontWeight: 700,
+                            fontSize: "0.85rem",
+                            color: "var(--text-main)",
+                            background: "var(--bg-subtle-box, #f1f5f9)",
+                            padding: "2px 7px",
+                            borderRadius: "4px",
+                            border: "1px solid var(--border-subtle)",
+                            letterSpacing: "0.04em",
+                          }}
                         >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {item.nid}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.74rem",
+                            color: "var(--text-muted)",
+                            marginTop: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <Calendar size={11} style={{ opacity: 0.6 }} />
+                          <span>জন্ম: {item.birthDate}</span>
+                        </div>
+                      </td>
+
+                      {/* Col 5: Passport Type */}
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            background: "rgba(99, 102, 241, 0.08)",
+                            border: "1px solid rgba(99, 102, 241, 0.2)",
+                            color: "#4f46e5",
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            fontSize: "0.78rem",
+                            fontWeight: 600,
+                            maxWidth: "180px",
+                            lineHeight: 1.35,
+                          }}
+                          title={getPassportTypeLabel(item.passportType)}
+                        >
+                          {getPassportTypeLabel(item.passportType)}
+                        </span>
+                      </td>
+
+                      {/* Col 6: Online Track ID Inline Edit */}
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle", minWidth: "150px" }}>
+                        {editingTrackIdRow === item._id ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <input
+                              type="text"
+                              value={tempTrackId}
+                              onChange={(e) => setTempTrackId(e.target.value)}
+                              placeholder="Track ID লিখুন"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  handleQuickTrackIdSave(item._id, tempTrackId);
+                                } else if (e.key === "Escape") {
+                                  setEditingTrackIdRow(null);
+                                }
+                              }}
+                              className="input-field"
+                              style={{
+                                height: "32px",
+                                padding: "4px 8px",
+                                fontSize: "0.8rem",
+                                fontFamily: "var(--font-mono, monospace)",
+                                fontWeight: 700,
+                                textTransform: "uppercase",
+                                width: "115px",
+                              }}
+                            />
+                            <button
+                              onClick={() => handleQuickTrackIdSave(item._id, tempTrackId)}
+                              disabled={savingTrackId === item._id}
+                              className="btn-primary btn-sm"
+                              style={{ padding: "4px 7px", height: "32px" }}
+                              title="সংরক্ষণ করুন"
+                            >
+                              <Check size={13} />
+                            </button>
+                            <button
+                              onClick={() => setEditingTrackIdRow(null)}
+                              className="btn-secondary btn-sm"
+                              style={{ padding: "4px 7px", height: "32px" }}
+                              title="বাতিল"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => {
+                              setEditingTrackIdRow(item._id);
+                              setTempTrackId(item.onlineTrackId || "");
+                            }}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              cursor: "pointer",
+                              padding: "4px 9px",
+                              borderRadius: "6px",
+                              background: item.onlineTrackId ? "rgba(14, 165, 233, 0.08)" : "rgba(0,0,0,0.02)",
+                              border: item.onlineTrackId ? "1px solid rgba(14, 165, 233, 0.25)" : "1px dashed var(--border-subtle)",
+                              transition: "all 0.15s ease",
+                            }}
+                            title="Online Track ID যোগ বা পরিবর্তন করতে ক্লিক করুন"
+                          >
+                            {item.onlineTrackId ? (
+                              <>
+                                <span
+                                  style={{
+                                    fontFamily: "var(--font-mono, monospace)",
+                                    fontWeight: 800,
+                                    color: "#0284c7",
+                                    fontSize: "0.82rem",
+                                    letterSpacing: "0.5px",
+                                  }}
+                                >
+                                  {item.onlineTrackId}
+                                </span>
+                                <Edit size={11} color="#0284c7" style={{ opacity: 0.7 }} />
+                              </>
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: "0.76rem",
+                                  color: "var(--text-muted)",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                <Plus size={12} /> ID যোগ করুন
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Col 7: Financials & Due */}
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                        {item.applicationCategory === "family_group" && !item.isFamilyHead ? (
+                          <div>
+                            <div
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                padding: "4px 8px",
+                                borderRadius: "6px",
+                                background: "rgba(14, 165, 233, 0.08)",
+                                color: "#0284c7",
+                                fontSize: "0.75rem",
+                                fontWeight: 600,
+                              }}
+                            >
+                              🤝 যৌথ বিলে
+                            </div>
+                            <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                              প্রধান: {item.familyHeadEntryNumber || ""}
+                            </div>
+                          </div>
+                        ) : item.dueAmount === 0 ? (
+                          <div>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#059669", fontWeight: 800, fontSize: "0.86rem" }}>
+                              <CheckCircle2 size={14} />
+                              <span>পরিশোধিত</span>
+                            </div>
+                            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                              মোট: ৳ {(item.totalAmount || 0).toLocaleString("en-IN")}
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ fontSize: "0.95rem", fontWeight: 900, color: "#d97706" }}>
+                              ৳ {(item.dueAmount || 0).toLocaleString("en-IN")}
+                              <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#b45309", marginLeft: "4px" }}>বকেয়া</span>
+                            </div>
+                            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                              মোট ৳{(item.totalAmount || 0).toLocaleString("en-IN")} • জমা ৳{(item.paidAmount || 0).toLocaleString("en-IN")}
+                            </div>
+                            <div
+                              style={{
+                                width: "100%",
+                                maxWidth: "110px",
+                                height: "4px",
+                                background: "rgba(0,0,0,0.06)",
+                                borderRadius: "2px",
+                                marginTop: "4px",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: `${Math.min(100, Math.round(((item.paidAmount || 0) / (item.totalAmount || 1)) * 100))}%`,
+                                  height: "100%",
+                                  background: "#10b981",
+                                  borderRadius: "2px",
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Col 8: Status Dropdown (Uniform Width 148px) */}
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle", width: "160px" }}>
+                        {(() => {
+                          const badgeStyle = getStatusBadge(item.status);
+                          return (
+                            <div style={{ position: "relative", width: "148px", maxWidth: "148px" }}>
+                              <select
+                                value={item.status}
+                                onChange={(e) => handleStatusChange(item._id, e.target.value)}
+                                title="স্ট্যাটাস পরিবর্তন করুন"
+                                style={{
+                                  width: "148px",
+                                  background: badgeStyle.bg,
+                                  color: badgeStyle.color,
+                                  border: `1px solid ${badgeStyle.border || "rgba(0,0,0,0.1)"}`,
+                                  padding: "6px 26px 6px 12px",
+                                  borderRadius: "20px",
+                                  fontSize: "0.78rem",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  appearance: "none",
+                                  WebkitAppearance: "none",
+                                  MozAppearance: "none",
+                                  outline: "none",
+                                  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                                  whiteSpace: "nowrap",
+                                  textOverflow: "ellipsis",
+                                  overflow: "hidden",
+                                  display: "block",
+                                  boxSizing: "border-box",
+                                }}
+                              >
+                                <option value="submitted" style={{ background: "var(--bg-surface, #ffffff)", color: "var(--text-main, #0f172a)" }}>আবেদন জমা</option>
+                                <option value="biometric_pending" style={{ background: "var(--bg-surface, #ffffff)", color: "var(--text-main, #0f172a)" }}>বায়োমেট্রিক বাকি</option>
+                                <option value="police_verification" style={{ background: "var(--bg-surface, #ffffff)", color: "var(--text-main, #0f172a)" }}>পুলিশ ভেরিফিকেশন</option>
+                                <option value="ready_for_pickup" style={{ background: "var(--bg-surface, #ffffff)", color: "var(--text-main, #0f172a)" }}>পাসপোর্ট রেডি</option>
+                                <option value="delivered" style={{ background: "var(--bg-surface, #ffffff)", color: "var(--text-main, #0f172a)" }}>ডেলিভারি সম্পন্ন</option>
+                              </select>
+                              <ChevronDown
+                                size={13}
+                                style={{
+                                  position: "absolute",
+                                  right: "9px",
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
+                                  color: badgeStyle.color,
+                                  pointerEvents: "none",
+                                }}
+                              />
+                            </div>
+                          );
+                        })()}
+                      </td>
+
+                      {/* Col 9: Created By & Audit */}
+                      <td style={{ padding: "12px 14px", fontSize: "0.8rem", verticalAlign: "middle" }}>
+                        <div style={{ fontWeight: 600, color: "var(--text-main)", display: "flex", alignItems: "center", gap: "4px" }}>
+                          <UserIcon size={12} style={{ color: "#6366f1" }} />
+                          <span>{creator}</span>
+                        </div>
+                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                          {createDate}
+                        </div>
+                        {updater && (
+                          <div style={{ fontSize: "0.68rem", color: "#8b5cf6", marginTop: "2px" }}>
+                            এডিট: {updater}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Col 10: Action Buttons */}
+                      <td style={{ padding: "12px 14px", textAlign: "right", verticalAlign: "middle" }}>
+                        <div style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
+                          <button
+                            onClick={() => {
+                              setSelectedEntry(item);
+                              setNewPaidInput(item.paidAmount);
+                            }}
+                            style={{
+                              width: "32px",
+                              height: "32px",
+                              borderRadius: "7px",
+                              border: "1px solid var(--border-subtle)",
+                              background: "var(--bg-subtle-box, rgba(0,0,0,0.02))",
+                              color: "#0284c7",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              transition: "all 0.15s ease",
+                            }}
+                            title="বিস্তারিত ও লেনদেন আপডেট"
+                          >
+                            <Eye size={15} />
+                          </button>
+                          <button
+                            onClick={() => handleOpenEdit(item)}
+                            style={{
+                              width: "32px",
+                              height: "32px",
+                              borderRadius: "7px",
+                              border: "1px solid var(--border-subtle)",
+                              background: "var(--bg-subtle-box, rgba(0,0,0,0.02))",
+                              color: "#6366f1",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              transition: "all 0.15s ease",
+                            }}
+                            title="এডিট করুন"
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteEntry(item._id)}
+                            style={{
+                              width: "32px",
+                              height: "32px",
+                              borderRadius: "7px",
+                              border: "1px solid rgba(239, 68, 68, 0.2)",
+                              background: "rgba(239, 68, 68, 0.05)",
+                              color: "#ef4444",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              transition: "all 0.15s ease",
+                            }}
+                            title="মুছে ফেলুন"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

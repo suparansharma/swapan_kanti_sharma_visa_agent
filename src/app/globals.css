@@ -628,6 +628,17 @@ select.input-field optgroup {
   .print-col-p-status { width: 6% !important; }
   .print-col-p-date { width: 6% !important; }
 
+  /* Fixed column widths for Daily Accounts Ledger Table (Total = 100%) */
+  .print-col-acc-date { width: 11% !important; }
+  .print-col-acc-track { width: 9% !important; }
+  .print-col-acc-module { width: 8% !important; }
+  .print-col-acc-name { width: 22% !important; }
+  .print-col-acc-in { width: 11% !important; }
+  .print-col-acc-out { width: 10% !important; }
+  .print-col-acc-profit { width: 10% !important; }
+  .print-col-acc-due { width: 9% !important; }
+  .print-col-acc-user { width: 10% !important; }
+
   /* Table column alignments */
   .print-td-track {
     text-align: center !important;

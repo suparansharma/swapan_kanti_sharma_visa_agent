@@ -198,6 +198,7 @@ PassportEntrySchema.pre("save", function () {
 });
 
 PassportEntrySchema.index({ entryNumber: 1 });
+PassportEntrySchema.index({ createdAt: -1 });
 PassportEntrySchema.index({ nid: 1 });
 PassportEntrySchema.index({ mobile: 1 });
 PassportEntrySchema.index({ familyGroupId: 1 });

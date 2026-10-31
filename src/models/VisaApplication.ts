@@ -202,6 +202,7 @@ VisaApplicationSchema.pre("save", function () {
 
 // Search indexes for rapid lookup by trackingId or passportNumber
 VisaApplicationSchema.index({ trackingId: 1 });
+VisaApplicationSchema.index({ createdAt: -1 });
 VisaApplicationSchema.index({ passportNumber: 1 });
 VisaApplicationSchema.index({ familyGroupId: 1 });
 VisaApplicationSchema.index({ familyHeadTrackingId: 1 });

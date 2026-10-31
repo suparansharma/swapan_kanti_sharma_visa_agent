@@ -102,10 +102,19 @@ interface FileSearchResult {
   dueAmount: number;
 }
 
+// Module-level memory cache for instant tab navigation (zero-delay tab switching)
+let memoryAccountsCache: {
+  entries: DailyLedgerItem[];
+  summary: SummaryData | null;
+  page: number;
+  totalPages: number;
+  totalMatching: number;
+} | null = null;
+
 export default function DailyEntryModule() {
-  const [entries, setEntries] = useState<DailyLedgerItem[]>([]);
-  const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [entries, setEntries] = useState<DailyLedgerItem[]>(() => memoryAccountsCache?.entries || []);
+  const [summary, setSummary] = useState<SummaryData | null>(() => memoryAccountsCache?.summary || null);
+  const [loading, setLoading] = useState(() => !memoryAccountsCache);
 
   // Filters
   const [dateFilterType, setDateFilterType] = useState<
@@ -185,10 +194,10 @@ export default function DailyEntryModule() {
   };
 
   // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(() => memoryAccountsCache?.page || 1);
   const [pageSize, setPageSize] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalMatching, setTotalMatching] = useState(0);
+  const [totalPages, setTotalPages] = useState(() => memoryAccountsCache?.totalPages || 1);
+  const [totalMatching, setTotalMatching] = useState(() => memoryAccountsCache?.totalMatching || 0);
 
   const fetchDailyEntries = async (
     page = currentPage,
@@ -201,7 +210,9 @@ export default function DailyEntryModule() {
     query = searchQuery
   ) => {
     try {
-      setLoading(true);
+      if (!memoryAccountsCache && entries.length === 0) {
+        setLoading(true);
+      }
       const params = new URLSearchParams();
       if (sDate) params.append("startDate", sDate);
       if (eDate) params.append("endDate", eDate);
@@ -222,6 +233,15 @@ export default function DailyEntryModule() {
           setTotalPages(data.pagination.totalPages || 1);
           setTotalMatching(data.pagination.totalEntries || 0);
         }
+
+        // Update memory cache
+        memoryAccountsCache = {
+          entries: data.entries || [],
+          summary: data.summary || null,
+          page: data.pagination?.page || 1,
+          totalPages: data.pagination?.totalPages || 1,
+          totalMatching: data.pagination?.totalEntries || 0,
+        };
       }
     } catch (err) {
       console.error("Error loading daily account entries:", err);
@@ -1306,7 +1326,8 @@ export default function DailyEntryModule() {
                     minWidth: "125px",
                   }}
                 >
-                  জমা (Cash In)
+                  <span className="no-print">জমা (Cash In)</span>
+                  <span className="print-only">জমা টাকা</span>
                 </th>
                 <th
                   className="print-col-acc-out"
@@ -1322,7 +1343,8 @@ export default function DailyEntryModule() {
                     minWidth: "125px",
                   }}
                 >
-                  খরচ (Expense)
+                  <span className="no-print">খরচ (Expense)</span>
+                  <span className="print-only">খরচ টাকা</span>
                 </th>
                 <th
                   className="print-col-acc-profit"
@@ -1338,7 +1360,8 @@ export default function DailyEntryModule() {
                     minWidth: "125px",
                   }}
                 >
-                  নিট লাভ (Profit)
+                  <span className="no-print">নিট লাভ (Profit)</span>
+                  <span className="print-only">নিট লাভ</span>
                 </th>
                 <th
                   className="print-col-acc-due"
@@ -1367,7 +1390,7 @@ export default function DailyEntryModule() {
                     letterSpacing: "0.03em",
                     textAlign: "center",
                     whiteSpace: "nowrap",
-                    minWidth: "120px",
+                    minWidth: "140px",
                   }}
                 >
                   এন্ট্রি করেছেন
@@ -1444,16 +1467,18 @@ export default function DailyEntryModule() {
                 </tr>
               ) : (
                 entries.map((item) => {
-                  const entryDate = new Date(item.createdAt);
-                  const formattedDate = entryDate.toLocaleDateString("bn-BD", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                  });
-                  const formattedTime = entryDate.toLocaleTimeString("bn-BD", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  });
+                  const entryDate = item.createdAt ? new Date(item.createdAt) : new Date();
+                  const d = isNaN(entryDate.getTime()) ? "--" : String(entryDate.getDate()).padStart(2, "0");
+                  const m = isNaN(entryDate.getTime()) ? "--" : String(entryDate.getMonth() + 1).padStart(2, "0");
+                  const y = isNaN(entryDate.getTime()) ? "----" : entryDate.getFullYear();
+                  const formattedDate = isNaN(entryDate.getTime()) ? "—" : `${d}/${m}/${y}`;
+                  const formattedTime = isNaN(entryDate.getTime())
+                    ? ""
+                    : entryDate.toLocaleTimeString("en-US", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
+                      });
 
                   return (
                     <tr
@@ -1585,23 +1610,6 @@ export default function DailyEntryModule() {
                           </span>
                           <span>{item.phone || "—"}</span>
                         </div>
-                        {item.notes && (
-                          <div
-                            style={{
-                              fontSize: "0.71rem",
-                              color: "var(--text-muted)",
-                              marginTop: "3px",
-                              display: "inline-block",
-                              background: "rgba(255, 255, 255, 0.03)",
-                              padding: "1px 6px",
-                              borderRadius: "4px",
-                              border: "1px solid var(--border-subtle)",
-                            }}
-                            className="print-note"
-                          >
-                            নোট: {item.notes}
-                          </div>
-                        )}
                       </td>
 
                       {/* 5. Cash In */}
@@ -1707,11 +1715,12 @@ export default function DailyEntryModule() {
                         }}
                       >
                         <span
+                          className="no-print"
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
                             gap: "5px",
-                            padding: "3px 9px",
+                            padding: "4px 10px",
                             borderRadius: "6px",
                             background: "rgba(255, 255, 255, 0.03)",
                             border: "1px solid var(--border-subtle)",
@@ -1720,9 +1729,23 @@ export default function DailyEntryModule() {
                             color: "var(--text-main)",
                             whiteSpace: "nowrap",
                           }}
+                          title={item.createdByName || "এডমিন"}
                         >
-                          <User size={12} style={{ color: "var(--text-muted)" }} />
+                          <User size={12} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
                           <span>{item.createdByName || "এডমিন"}</span>
+                        </span>
+                        <span
+                          className="print-only"
+                          style={{
+                            fontSize: "7.2pt",
+                            fontWeight: 600,
+                            color: "#000000",
+                            wordBreak: "break-word",
+                            lineHeight: 1.25,
+                            display: "block",
+                          }}
+                        >
+                          {item.createdByName || "এডমিন"}
                         </span>
                       </td>
 
@@ -2834,9 +2857,14 @@ export default function DailyEntryModule() {
                     </tr>
                   ) : (
                     viewingTransactionsItem.transactions.map((tx, idx) => {
-                      const tDate = new Date(tx.createdAt);
-                      const fDate = tDate.toLocaleDateString("bn-BD", { day: "2-digit", month: "short", year: "numeric" });
-                      const fTime = tDate.toLocaleTimeString("bn-BD", { hour: "2-digit", minute: "2-digit" });
+                      const tDate = tx.createdAt ? new Date(tx.createdAt) : new Date();
+                      const td = isNaN(tDate.getTime()) ? "--" : String(tDate.getDate()).padStart(2, "0");
+                      const tm = isNaN(tDate.getTime()) ? "--" : String(tDate.getMonth() + 1).padStart(2, "0");
+                      const ty = isNaN(tDate.getTime()) ? "----" : tDate.getFullYear();
+                      const fDate = isNaN(tDate.getTime()) ? "—" : `${td}/${tm}/${ty}`;
+                      const fTime = isNaN(tDate.getTime())
+                        ? ""
+                        : tDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
                       const isCol = tx.entryType === "collection" || tx.inAmount > 0;
 
                       return (

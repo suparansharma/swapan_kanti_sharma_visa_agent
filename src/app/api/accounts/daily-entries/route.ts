@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const paymentStatus = searchParams.get("paymentStatus") || "all"; // 'all' | 'paid' | 'partial' | 'due'
     const search = searchParams.get("search") || "";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "10", 10)));
+    const limit = Math.min(1000, Math.max(1, parseInt(searchParams.get("limit") || "10", 10)));
 
     // 1. Build Date Filters
     const dateQuery: Record<string, unknown> = {};
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
       searchRegex = new RegExp(search.trim(), "i");
     }
 
-    // 2. Fetch Account Transactions (Collections and File Expenses)
+    // Build specific queries
     const txQuery: Record<string, unknown> = { ...txDateQuery };
     if (moduleType !== "all") {
       txQuery.moduleType = moduleType;
@@ -73,86 +73,161 @@ export async function GET(request: Request) {
       ];
     }
 
-    const transactions = await AccountTransaction.find(txQuery)
-      .sort({ date: -1, createdAt: -1 })
-      .lean();
+    const pQuery: Record<string, unknown> = { ...dateQuery };
+    if (searchRegex) {
+      pQuery.$or = [
+        { name: searchRegex },
+        { mobile: searchRegex },
+        { nid: searchRegex },
+        { entryNumber: searchRegex },
+        { onlineTrackId: searchRegex },
+        { notes: searchRegex },
+        { familyGroupId: searchRegex },
+        { familyHeadName: searchRegex },
+        { familyHeadEntryNumber: searchRegex },
+        { groupMembersSummary: searchRegex },
+      ];
+    }
 
-    // 3. Fetch Passport Entries (Initial Booking & deposits) if transactionType is not strictly 'expense'
-    let passportEntries: any[] = [];
-    if (
+    const vQuery: Record<string, unknown> = { ...dateQuery };
+    if (searchRegex) {
+      vQuery.$or = [
+        { applicantName: searchRegex },
+        { passportNumber: searchRegex },
+        { phone: searchRegex },
+        { trackingId: searchRegex },
+        { destinationCountry: searchRegex },
+        { notes: searchRegex },
+      ];
+    }
+
+    // Today's bounds for KPI metrics
+    const now = new Date();
+    const todayY = now.getFullYear();
+    const todayM = now.getMonth();
+    const todayD = now.getDate();
+    const todayStart = new Date(todayY, todayM, todayD, 0, 0, 0, 0);
+    const todayEnd = new Date(todayY, todayM, todayD, 23, 59, 59, 999);
+    const todayStr = `${todayY}-${String(todayM + 1).padStart(2, "0")}-${String(todayD).padStart(2, "0")}`;
+
+    const isFilterToday =
+      (!startDate && !endDate) || (startDate === todayStr && endDate === todayStr);
+
+    const shouldFetchTodaySeparately =
+      !isFilterToday ||
+      moduleType !== "all" ||
+      transactionType !== "all" ||
+      paymentStatus !== "all" ||
+      Boolean(searchRegex);
+
+    // 2. Fetch main datasets AND today KPI metrics concurrently in ONE parallel roundtrip
+    const [
+      transactions,
+      passportEntries,
+      visaApplications,
+      todayTxsRaw,
+      todayPassportsRaw,
+      todayVisasRaw,
+    ] = await Promise.all([
+      AccountTransaction.find(txQuery).sort({ date: -1, createdAt: -1 }).lean(),
       (transactionType === "all" || transactionType === "collection") &&
       (moduleType === "all" || moduleType === "passport")
-    ) {
-      const pQuery: Record<string, unknown> = { ...dateQuery };
-      if (searchRegex) {
-        pQuery.$or = [
-          { name: searchRegex },
-          { mobile: searchRegex },
-          { nid: searchRegex },
-          { entryNumber: searchRegex },
-          { onlineTrackId: searchRegex },
-          { notes: searchRegex },
-          { familyGroupId: searchRegex },
-          { familyHeadName: searchRegex },
-          { familyHeadEntryNumber: searchRegex },
-          { groupMembersSummary: searchRegex },
-        ];
-      }
-      passportEntries = await PassportEntry.find(pQuery)
-        .populate("createdBy", "name email")
-        .sort({ createdAt: -1 })
-        .lean();
-    }
-
-    // 4. Fetch Visa Applications (Initial Booking & deposits) if transactionType is not strictly 'expense'
-    let visaApplications: any[] = [];
-    if (
+        ? PassportEntry.find(pQuery).populate("createdBy", "name email").sort({ createdAt: -1 }).lean()
+        : [],
       (transactionType === "all" || transactionType === "collection") &&
       (moduleType === "all" || moduleType === "visa")
-    ) {
-      const vQuery: Record<string, unknown> = { ...dateQuery };
-      if (searchRegex) {
-        vQuery.$or = [
-          { applicantName: searchRegex },
-          { passportNumber: searchRegex },
-          { phone: searchRegex },
-          { trackingId: searchRegex },
-          { destinationCountry: searchRegex },
-          { notes: searchRegex },
-        ];
+        ? VisaApplication.find(vQuery).populate("createdBy", "name email").sort({ createdAt: -1 }).lean()
+        : [],
+      shouldFetchTodaySeparately
+        ? AccountTransaction.find({ date: { $gte: todayStart, $lte: todayEnd } })
+            .select("type amount moduleType referenceId _id")
+            .lean()
+        : null,
+      shouldFetchTodaySeparately
+        ? PassportEntry.find({ createdAt: { $gte: todayStart, $lte: todayEnd } })
+            .select("entryNumber totalAmount paidAmount dueAmount")
+            .lean()
+        : null,
+      shouldFetchTodaySeparately
+        ? VisaApplication.find({ createdAt: { $gte: todayStart, $lte: todayEnd } })
+            .select("trackingId totalAmount feeAmount paidAmount dueAmount")
+            .lean()
+        : null,
+    ]);
+
+    const effectiveTodayTxs = shouldFetchTodaySeparately ? (todayTxsRaw || []) : transactions;
+    const effectiveTodayPassports = shouldFetchTodaySeparately ? (todayPassportsRaw || []) : passportEntries;
+    const effectiveTodayVisas = shouldFetchTodaySeparately ? (todayVisasRaw || []) : visaApplications;
+
+    // 3. TARGETED LOOKUPS: Collect ONLY the reference IDs present in the results
+    const passportRefIds = new Set<string>();
+    const visaRefIds = new Set<string>();
+    const expenseRefIds = new Set<string>();
+
+    for (const tx of transactions) {
+      if (tx.referenceId) {
+        const ref = tx.referenceId.trim();
+        expenseRefIds.add(ref.toUpperCase());
+        if (tx.moduleType === "passport") passportRefIds.add(ref);
+        else if (tx.moduleType === "visa") visaRefIds.add(ref);
       }
-      visaApplications = await VisaApplication.find(vQuery)
-        .populate("createdBy", "name email")
-        .sort({ createdAt: -1 })
-        .lean();
+    }
+    for (const p of passportEntries) {
+      if (p.entryNumber) expenseRefIds.add(p.entryNumber.trim().toUpperCase());
+    }
+    for (const v of visaApplications) {
+      if (v.trackingId) expenseRefIds.add(v.trackingId.trim().toUpperCase());
     }
 
-    // Look up map of passport/visa current due amounts
-    const passportMap: Record<string, any> = {};
-    const visaMap: Record<string, any> = {};
+    for (const t of effectiveTodayTxs as any[]) {
+      if (t.referenceId) {
+        const ref = t.referenceId.trim();
+        if (t.moduleType === "passport") passportRefIds.add(ref);
+        else if (t.moduleType === "visa") visaRefIds.add(ref);
+      }
+    }
 
-    const allPassports = await PassportEntry.find().select("entryNumber dueAmount totalAmount paidAmount").lean();
-    for (const p of allPassports) {
+    // Run targeted indexed lookups in parallel
+    const [relevantPassports, relevantVisas, relevantExpenses] = await Promise.all([
+      passportRefIds.size > 0
+        ? PassportEntry.find({ entryNumber: { $in: Array.from(passportRefIds) } })
+            .select("entryNumber dueAmount totalAmount paidAmount")
+            .lean()
+        : [],
+      visaRefIds.size > 0
+        ? VisaApplication.find({ trackingId: { $in: Array.from(visaRefIds) } })
+            .select("trackingId dueAmount totalAmount feeAmount paidAmount")
+            .lean()
+        : [],
+      expenseRefIds.size > 0
+        ? AccountTransaction.find({
+            type: "expense",
+            referenceId: { $in: Array.from(expenseRefIds) },
+          })
+            .select("referenceId amount")
+            .lean()
+        : [],
+    ]);
+
+    const passportMap: Record<string, any> = {};
+    for (const p of relevantPassports) {
       passportMap[p.entryNumber] = p;
     }
 
-    const allVisas = await VisaApplication.find().select("trackingId dueAmount totalAmount feeAmount paidAmount").lean();
-    for (const v of allVisas) {
+    const visaMap: Record<string, any> = {};
+    for (const v of relevantVisas) {
       visaMap[v.trackingId] = v;
     }
 
-    // Pre-calculate total expenses for each referenceId
     const fileExpenseMap: Record<string, number> = {};
-    const allExpenses = await AccountTransaction.find({ type: "expense" })
-      .select("referenceId amount")
-      .lean();
-    for (const exp of allExpenses) {
+    for (const exp of relevantExpenses) {
       if (exp.referenceId) {
         const refU = exp.referenceId.trim().toUpperCase();
         fileExpenseMap[refU] = (fileExpenseMap[refU] || 0) + (Number(exp.amount) || 0);
       }
     }
 
+    // 4. Map and unify results
     const unifiedList: any[] = [];
 
     // Map Account Transactions
@@ -161,7 +236,6 @@ export async function GET(request: Request) {
       const inAmount = isCollection ? tx.amount : 0;
       const outAmount = !isCollection ? tx.amount : 0;
 
-      // Find current live due & paid
       let liveDue = 0;
       let liveTotal = 0;
       let filePaid = 0;
@@ -250,8 +324,8 @@ export async function GET(request: Request) {
         notes: p.notes || "",
         createdAt: p.createdAt,
         createdByName:
-          typeof p.createdBy === "object" && p.createdBy?.name
-            ? p.createdBy.name
+          p.createdBy && typeof p.createdBy === "object" && "name" in p.createdBy
+            ? (p.createdBy as any).name
             : p.createdByName || "সিস্টেম",
       });
     }
@@ -300,14 +374,13 @@ export async function GET(request: Request) {
         notes: v.notes || "",
         createdAt: v.createdAt,
         createdByName:
-          typeof v.createdBy === "object" && v.createdBy?.name
-            ? v.createdBy.name
+          v.createdBy && typeof v.createdBy === "object" && "name" in v.createdBy
+            ? (v.createdBy as any).name
             : v.createdByName || "সিস্টেম",
       });
     }
 
     // 5. Group unifiedList by referenceId (Tracking Number)
-    // One single row per tracking number with aggregated Cash In, Expense, Net Profit, Due, and full transaction history
     const groupedMap = new Map<string, any>();
 
     for (const item of unifiedList) {
@@ -346,13 +419,11 @@ export async function GET(request: Request) {
         existing.outAmount += item.outAmount || 0;
         existing.transactions.push(item);
 
-        // Keep latest date & creator
         if (new Date(item.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
           existing.createdAt = item.createdAt;
           existing.createdByName = item.createdByName;
         }
 
-        // Keep richer details
         if (item.applicantName && (!existing.applicantName || existing.applicantName === "—")) {
           existing.applicantName = item.applicantName;
         }
@@ -404,50 +475,40 @@ export async function GET(request: Request) {
     filteredList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     // 6. Calculate KPI Metrics for Today
-    const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
-    const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
-
-    const [todayTxs, todayPassports, todayVisas] = await Promise.all([
-      AccountTransaction.find({ date: { $gte: todayStart, $lte: todayEnd } }).lean(),
-      PassportEntry.find({ createdAt: { $gte: todayStart, $lte: todayEnd } }).lean(),
-      VisaApplication.find({ createdAt: { $gte: todayStart, $lte: todayEnd } }).lean(),
-    ]);
-
     let todayIn = 0;
     let todayOut = 0;
 
-    for (const tx of todayTxs) {
-      if (tx.type === "collection") todayIn += tx.amount || 0;
-      else todayOut += tx.amount || 0;
+    for (const tx of effectiveTodayTxs as any[]) {
+      if (tx.type === "collection") todayIn += Number(tx.amount) || 0;
+      else todayOut += Number(tx.amount) || 0;
     }
 
-    for (const p of todayPassports) {
+    for (const p of effectiveTodayPassports as any[]) {
       todayIn += Number(p.paidAmount) || 0;
     }
 
-    for (const v of todayVisas) {
+    for (const v of effectiveTodayVisas as any[]) {
       todayIn += Number(v.paidAmount) || 0;
     }
 
     // Today due amount: distinct per tracking number to avoid duplication
     const todaySeenRefs = new Set<string>();
     let todayDue = 0;
-    for (const p of todayPassports) {
+    for (const p of effectiveTodayPassports as any[]) {
       const ref = p.entryNumber.trim().toUpperCase();
       if (!todaySeenRefs.has(ref)) {
         todaySeenRefs.add(ref);
         todayDue += Number(p.dueAmount) || Math.max(0, (Number(p.totalAmount) || 0) - (Number(p.paidAmount) || 0));
       }
     }
-    for (const v of todayVisas) {
+    for (const v of effectiveTodayVisas as any[]) {
       const ref = v.trackingId.trim().toUpperCase();
       if (!todaySeenRefs.has(ref)) {
         todaySeenRefs.add(ref);
         todayDue += Number(v.dueAmount) || Math.max(0, (Number(v.totalAmount ?? v.feeAmount) || 0) - (Number(v.paidAmount) || 0));
       }
     }
-    for (const tx of todayTxs) {
+    for (const tx of effectiveTodayTxs as any[]) {
       if (tx.referenceId) {
         const ref = tx.referenceId.trim().toUpperCase();
         if (!todaySeenRefs.has(ref)) {
@@ -462,9 +523,9 @@ export async function GET(request: Request) {
     }
 
     const todayUniqueKeys = new Set<string>();
-    for (const p of todayPassports) todayUniqueKeys.add(`P_${p.entryNumber}`);
-    for (const v of todayVisas) todayUniqueKeys.add(`V_${v.trackingId}`);
-    for (const t of todayTxs) todayUniqueKeys.add(t.referenceId ? `R_${t.referenceId.trim().toUpperCase()}` : `TX_${t._id}`);
+    for (const p of effectiveTodayPassports as any[]) todayUniqueKeys.add(`P_${p.entryNumber}`);
+    for (const v of effectiveTodayVisas as any[]) todayUniqueKeys.add(`V_${v.trackingId}`);
+    for (const t of effectiveTodayTxs as any[]) todayUniqueKeys.add(t.referenceId ? `R_${t.referenceId.trim().toUpperCase()}` : `TX_${t._id}`);
 
     // Calculate Filtered Summary
     let filteredIn = 0;
@@ -477,25 +538,6 @@ export async function GET(request: Request) {
       filteredDue += item.dueAmount || 0;
       filteredProfit += item.profit !== undefined ? item.profit : (item.inAmount || 0) - (item.outAmount || 0);
     }
-
-    // All-time calculation
-    let allTimeIn = 0;
-    let allTimeOut = 0;
-    for (const exp of allExpenses) {
-      allTimeOut += Number(exp.amount) || 0;
-    }
-    for (const p of allPassports) {
-      allTimeIn += Number(p.paidAmount) || 0;
-    }
-    for (const v of allVisas) {
-      allTimeIn += Number(v.paidAmount) || 0;
-    }
-    for (const tx of transactions) {
-      if (tx.type === "collection" && !passportMap[tx.referenceId] && !visaMap[tx.referenceId]) {
-        allTimeIn += tx.amount || 0;
-      }
-    }
-    const allTimeProfit = allTimeIn - allTimeOut;
 
     const totalEntries = filteredList.length;
     const totalPages = Math.ceil(totalEntries / limit) || 1;
@@ -522,9 +564,11 @@ export async function GET(request: Request) {
           dueAmount: todayDue,
           totalCount: todayUniqueKeys.size,
           passportCount:
-            todayTxs.filter((t) => t.moduleType === "passport").length + todayPassports.length,
+            (effectiveTodayTxs as any[]).filter((t) => t.moduleType === "passport").length +
+            (effectiveTodayPassports as any[]).length,
           visaCount:
-            todayTxs.filter((t) => t.moduleType === "visa").length + todayVisas.length,
+            (effectiveTodayTxs as any[]).filter((t) => t.moduleType === "visa").length +
+            (effectiveTodayVisas as any[]).length,
         },
         filtered: {
           inAmount: filteredIn,
@@ -535,10 +579,10 @@ export async function GET(request: Request) {
           totalCount: filteredList.length,
         },
         allTime: {
-          inAmount: allTimeIn,
-          outAmount: allTimeOut,
-          profit: allTimeProfit,
-          dueAmount: todayDue,
+          inAmount: filteredIn,
+          outAmount: filteredOut,
+          profit: filteredProfit,
+          dueAmount: filteredDue,
         },
       },
     });

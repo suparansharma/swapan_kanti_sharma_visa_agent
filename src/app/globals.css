@@ -575,9 +575,10 @@ select.input-field optgroup {
     border: 1px solid #000000 !important;
     padding: 4px 2px !important;
     font-weight: 800 !important;
-    font-size: 7.5pt !important;
+    font-size: 7.2pt !important;
     text-align: center !important;
     vertical-align: middle !important;
+    white-space: normal !important;
     word-break: break-word !important;
     overflow-wrap: break-word !important;
   }
@@ -629,15 +630,21 @@ select.input-field optgroup {
   .print-col-p-date { width: 6% !important; }
 
   /* Fixed column widths for Daily Accounts Ledger Table (Total = 100%) */
-  .print-col-acc-date { width: 11% !important; }
-  .print-col-acc-track { width: 9% !important; }
-  .print-col-acc-module { width: 8% !important; }
-  .print-col-acc-name { width: 22% !important; }
+  .print-col-acc-date { width: 10% !important; }
+  .print-col-acc-track { width: 7% !important; }
+  .print-col-acc-module { width: 7% !important; }
+  .print-col-acc-name { width: 19% !important; }
   .print-col-acc-in { width: 11% !important; }
-  .print-col-acc-out { width: 10% !important; }
-  .print-col-acc-profit { width: 10% !important; }
-  .print-col-acc-due { width: 9% !important; }
-  .print-col-acc-user { width: 10% !important; }
+  .print-col-acc-out { width: 11% !important; }
+  .print-col-acc-profit { width: 11% !important; }
+  .print-col-acc-due { width: 10% !important; }
+  .print-col-acc-user {
+    width: 14% !important;
+    text-align: center !important;
+    font-size: 7.2pt !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
 
   /* Table column alignments */
   .print-td-track {

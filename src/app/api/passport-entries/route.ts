@@ -150,6 +150,8 @@ export async function POST(request: Request) {
       birthDate,
       passportType,
       receivedDate,
+      receivedBy,
+      receivedByEmployeeId,
       totalAmount,
       paidAmount,
       onlineTrackId,
@@ -172,6 +174,8 @@ export async function POST(request: Request) {
     const parsedPaid = Math.max(0, Number(paidAmount) || 0);
     const calculatedDue = Math.max(0, parsedTotal - parsedPaid);
     const effectiveReceivedDate = receivedDate ? receivedDate.trim() : new Date().toISOString().split("T")[0];
+    const effectiveReceivedBy = receivedBy ? receivedBy.trim() : (authUser?.name || "");
+    const effectiveReceivedByEmployeeId = receivedByEmployeeId ? receivedByEmployeeId.trim() : "";
 
     // Helper: Next Sequential Entry Number (PS-001)
     const getNextEntryNumber = async (): Promise<string> => {
@@ -253,6 +257,8 @@ export async function POST(request: Request) {
         birthDate: birthDate.trim(),
         passportType: passportType || "e_passport_10y_48p",
         receivedDate: effectiveReceivedDate,
+        receivedBy: effectiveReceivedBy,
+        receivedByEmployeeId: effectiveReceivedByEmployeeId,
         totalAmount: parsedTotal,
         paidAmount: parsedPaid,
         dueAmount: calculatedDue,
@@ -285,6 +291,8 @@ export async function POST(request: Request) {
           birthDate: m.birthDate ? m.birthDate.trim() : "—",
           passportType: m.passportType || passportType || "e_passport_10y_48p",
           receivedDate: effectiveReceivedDate,
+          receivedBy: effectiveReceivedBy,
+          receivedByEmployeeId: effectiveReceivedByEmployeeId,
           totalAmount: 0,
           paidAmount: 0,
           dueAmount: 0,
@@ -329,6 +337,8 @@ export async function POST(request: Request) {
       birthDate: birthDate.trim(),
       passportType: passportType || "e_passport_10y_48p",
       receivedDate: effectiveReceivedDate,
+      receivedBy: effectiveReceivedBy,
+      receivedByEmployeeId: effectiveReceivedByEmployeeId,
       totalAmount: parsedTotal,
       paidAmount: parsedPaid,
       dueAmount: calculatedDue,
@@ -378,6 +388,8 @@ export async function PUT(request: Request) {
       birthDate,
       passportType,
       receivedDate,
+      receivedBy,
+      receivedByEmployeeId,
       totalAmount,
       paidAmount,
       onlineTrackId,
@@ -398,6 +410,8 @@ export async function PUT(request: Request) {
     if (birthDate) updateData.birthDate = birthDate.trim();
     if (passportType) updateData.passportType = passportType;
     if (receivedDate !== undefined) updateData.receivedDate = receivedDate.trim();
+    if (receivedBy !== undefined) updateData.receivedBy = receivedBy.trim();
+    if (receivedByEmployeeId !== undefined) updateData.receivedByEmployeeId = receivedByEmployeeId.trim();
     if (onlineTrackId !== undefined) updateData.onlineTrackId = onlineTrackId ? onlineTrackId.trim() : "";
     if (status) updateData.status = status;
     if (deliveryDate !== undefined) updateData.deliveryDate = deliveryDate ? new Date(deliveryDate) : undefined;

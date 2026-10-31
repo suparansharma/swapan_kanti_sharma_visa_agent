@@ -81,6 +81,8 @@ interface VisaApplicationItem {
   dueAmount?: number;
   feeStatus: "paid" | "partial" | "pending";
   receivedDate?: string;
+  receivedBy?: string;
+  receivedByEmployeeId?: string;
   notes?: string;
   applicationCategory?: "individual" | "family_group";
   isFamilyHead?: boolean;
@@ -219,6 +221,10 @@ export default function Dashboard() {
   const [serviceType, setServiceType] = useState("tourist_visa");
   const [visaType, setVisaType] = useState("");
   const [visaReceivedDate, setVisaReceivedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [employeesList, setEmployeesList] = useState<
+    Array<{ _id: string; name: string; employeeId?: string; designation?: string; department?: string }>
+  >([]);
+  const [visaReceivedBy, setVisaReceivedBy] = useState("");
   const [status, setStatus] = useState("submitted");
   const [totalAmount, setTotalAmount] = useState<number | "">("");
   const [paidAmount, setPaidAmount] = useState<number | "">("");
@@ -277,6 +283,7 @@ export default function Dashboard() {
   const [editServiceType, setEditServiceType] = useState("tourist_visa");
   const [editVisaType, setEditVisaType] = useState("");
   const [editVisaReceivedDate, setEditVisaReceivedDate] = useState("");
+  const [editVisaReceivedBy, setEditVisaReceivedBy] = useState("");
   const [editStatus, setEditStatus] = useState("submitted");
   const [editTotalAmount, setEditTotalAmount] = useState<number | "">("");
   const [editPaidAmount, setEditPaidAmount] = useState<number | "">("");
@@ -329,9 +336,33 @@ export default function Dashboard() {
     }
   };
 
+  // Fetch employees list for receiver select box
+  const fetchEmployeesList = async () => {
+    try {
+      const res = await fetch("/api/employees?limit=100");
+      if (res.ok) {
+        const data = await res.json();
+        setEmployeesList(data.employees || []);
+      }
+    } catch (err) {
+      console.error("Error fetching employees:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchEmployeesList();
+  }, []);
+
+  useEffect(() => {
+    if (user?.name && !visaReceivedBy) {
+      setVisaReceivedBy(user.name);
+    }
+  }, [user, visaReceivedBy]);
+
   useEffect(() => {
     if (activeTab === "visa_applications") {
       fetchVisaApplications(1, visaPageSize, searchVisa, filterVisaStatus, filterVisaCategory);
+      fetchEmployeesList();
     }
   }, [filterVisaStatus, filterVisaCategory, visaPageSize, activeTab]);
 
@@ -360,6 +391,7 @@ export default function Dashboard() {
           serviceType,
           visaType: visaType.trim(),
           receivedDate: visaReceivedDate || new Date().toISOString().split("T")[0],
+          receivedBy: visaReceivedBy.trim() || user?.name || "",
           status,
           feeAmount: numVisaTotal,
           totalAmount: numVisaTotal,
@@ -382,6 +414,7 @@ export default function Dashboard() {
         setEmail("");
         setVisaType("");
         setVisaReceivedDate(new Date().toISOString().split("T")[0]);
+        setVisaReceivedBy(user?.name || "");
         setTotalAmount("");
         setPaidAmount("");
         setNotes("");
@@ -429,6 +462,12 @@ export default function Dashboard() {
     setEditServiceType(app.serviceType);
     setEditVisaType(app.visaType || "");
     setEditVisaReceivedDate(app.receivedDate || (app.createdAt ? app.createdAt.split("T")[0] : new Date().toISOString().split("T")[0]));
+    setEditVisaReceivedBy(
+      app.receivedBy ||
+      (typeof app.createdBy === "object" && app.createdBy?.name ? app.createdBy.name : app.createdByName) ||
+      user?.name ||
+      ""
+    );
     setEditStatus(app.status);
     const total = app.totalAmount ?? app.feeAmount ?? 0;
     const paid = app.paidAmount ?? (app.feeStatus === "paid" ? total : 0);
@@ -463,6 +502,7 @@ export default function Dashboard() {
           serviceType: editServiceType,
           visaType: editVisaType.trim(),
           receivedDate: editVisaReceivedDate,
+          receivedBy: editVisaReceivedBy.trim(),
           status: editStatus,
           totalAmount: numEditVisaTotal,
           paidAmount: numEditVisaPaid,
@@ -1503,7 +1543,10 @@ export default function Dashboard() {
                   <span>রিফ্রেশ</span>
                 </button>
                 <button
-                  onClick={() => setShowAddVisaModal(true)}
+                  onClick={() => {
+                    setVisaReceivedBy(user?.name || "");
+                    setShowAddVisaModal(true);
+                  }}
                   className="btn-primary"
                   style={{
                     display: "flex",
@@ -1822,7 +1865,7 @@ export default function Dashboard() {
                       <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", minWidth: "140px" }}>সার্ভিস ধরন</th>
                       <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>চুক্তি ও বকেয়া</th>
                       <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap", width: "160px" }}>স্ট্যাটাস</th>
-                      <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>তৈরি করেছেন</th>
+                      <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>রিসিভকারী / তৈরি</th>
                       <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", textAlign: "right", whiteSpace: "nowrap" }}>একশন</th>
                     </tr>
                   </thead>
@@ -1854,7 +1897,13 @@ export default function Dashboard() {
                       <tr>
                         <td colSpan={8} style={{ padding: "50px 20px", textAlign: "center", color: "var(--text-muted)" }}>
                           <div style={{ marginBottom: "12px", fontSize: "1.05rem" }}>কোনো ভিসা আবেদন পাওয়া যায়নি।</div>
-                          <button onClick={() => setShowAddVisaModal(true)} className="btn-primary btn-sm">
+                          <button
+                            onClick={() => {
+                              setVisaReceivedBy(user?.name || "");
+                              setShowAddVisaModal(true);
+                            }}
+                            className="btn-primary btn-sm"
+                          >
                             + নতুন ভিসা আবেদন যুক্ত করুন
                           </button>
                         </td>
@@ -2196,7 +2245,7 @@ export default function Dashboard() {
                             <td style={{ padding: "12px 14px", fontSize: "0.8rem", verticalAlign: "middle" }}>
                               <div style={{ fontWeight: 600, color: "var(--text-main)", display: "flex", alignItems: "center", gap: "4px" }}>
                                 <UserIcon size={12} style={{ color: "#6366f1" }} />
-                                <span>{creator}</span>
+                                <span>{app.receivedBy || creator}</span>
                               </div>
                               <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
                                 {createDate}
@@ -2816,6 +2865,32 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
+                    রিসিভ করেছেন যিনি (Received By) *
+                  </label>
+                  <select
+                    value={visaReceivedBy}
+                    onChange={(e) => setVisaReceivedBy(e.target.value)}
+                    className="input-field"
+                    required
+                  >
+                    <option value="">-- কর্মচারী নির্বাচন করুন --</option>
+                    {user?.name && !employeesList.some(emp => emp.name.trim().toLowerCase() === user.name.trim().toLowerCase()) && (
+                      <option value={user.name}>
+                        {user.name} (বর্তমান ইউজার)
+                      </option>
+                    )}
+                    {employeesList.map((emp) => (
+                      <option key={emp._id} value={emp.name}>
+                        {emp.name} {emp.designation ? `(${emp.designation})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
                     সার্ভিস ধরন
                   </label>
                   <select
@@ -2849,48 +2924,47 @@ export default function Dashboard() {
                     <option value="passport_renewal">পাসপোর্ট নবায়ন (Passport Renewal)</option>
                   </select>
                 </div>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
-                  ভিসা টাইপ (Visa Type)
-                </label>
-                <select
-                  value={visaType}
-                  onChange={(e) => {
-                    const newVType = e.target.value;
-                    setVisaType(newVType);
-                    if (!isMedicalPatient(serviceType, newVType)) {
-                      const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === status);
-                      if (isCurrentMedStatus) {
-                        setStatus("submitted");
+                <div>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
+                    ভিসা টাইপ (Visa Type)
+                  </label>
+                  <select
+                    value={visaType}
+                    onChange={(e) => {
+                      const newVType = e.target.value;
+                      setVisaType(newVType);
+                      if (!isMedicalPatient(serviceType, newVType)) {
+                        const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === status);
+                        if (isCurrentMedStatus) {
+                          setStatus("submitted");
+                        }
                       }
-                    }
-                  }}
-                  className="input-field"
-                  style={{
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                  }}
-                >
-                  <option value="">-- ভিসা টাইপ নির্বাচন করুন --</option>
-                  <optgroup label="জনপ্রিয় ও নিয়মিত ক্যাটাগরি">
-                    <option value="ট্যুরিস্ট ভিসা (Tourist Visa)">ট্যুরিস্ট ভিসা (Tourist Visa - T1)</option>
-                    <option value="মেডিকেল পেশেন্ট (Medical Patient)">মেডিকেল পেশেন্ট (Medical Patient - M1/M3)</option>
-                    <option value="মেডিকেল এটেন্ডেন্ট (Medical Attendant)">মেডিকেল এটেন্ডেন্ট (Medical Attendant - M2/M4)</option>
-                    <option value="স্টুডেন্ট ভিসা (Student Visa)">স্টুডেন্ট ভিসা (Student Visa - S1)</option>
-                    <option value="বিজনেস ভিসা (Business Visa)">বিজনেস ভিসা (Business Visa - B1)</option>
-                    <option value="ওয়ার্ক পারমিট (Work Permit)">ওয়ার্ক পারমিট (Work Permit - E1)</option>
-                  </optgroup>
-                  <optgroup label="অফিশিয়াল ভিসা কোড তালিকা">
-                    {STRUCTURED_INDIAN_VISA_TYPES.map((item) => (
-                      <option key={item.code} value={item.value}>
-                        {item.title}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
+                    }}
+                    className="input-field"
+                    style={{
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <option value="">-- ভিসা টাইপ নির্বাচন করুন --</option>
+                    <optgroup label="জনপ্রিয় ও নিয়মিত ক্যাটাগরি">
+                      <option value="ট্যুরিস্ট ভিসা (Tourist Visa)">ট্যুরিস্ট ভিসা (Tourist Visa - T1)</option>
+                      <option value="মেডিকেল পেশেন্ট (Medical Patient)">মেডিকেল পেশেন্ট (Medical Patient - M1/M3)</option>
+                      <option value="মেডিকেল এটেন্ডেন্ট (Medical Attendant)">মেডিকেল এটেন্ডেন্ট (Medical Attendant - M2/M4)</option>
+                      <option value="স্টুডেন্ট ভিসা (Student Visa)">স্টুডেন্ট ভিসা (Student Visa - S1)</option>
+                      <option value="বিজনেস ভিসা (Business Visa)">বিজনেস ভিসা (Business Visa - B1)</option>
+                      <option value="ওয়ার্ক পারমিট (Work Permit)">ওয়ার্ক পারমিট (Work Permit - E1)</option>
+                    </optgroup>
+                    <optgroup label="অফিশিয়াল ভিসা কোড তালিকা">
+                      {STRUCTURED_INDIAN_VISA_TYPES.map((item) => (
+                        <option key={item.code} value={item.value}>
+                          {item.title}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
               </div>
 
               {/* Financial Breakdown (যৌথ লেনদেন ও টাকার হিসাব) */}
@@ -3005,6 +3079,21 @@ export default function Dashboard() {
                 </select>
               </div>
 
+              {/* Note / মন্তব্য Field */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "4px" }}>
+                  নোট / মন্তব্য (Note)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="প্রয়োজনীয় কোনো বিশেষ নোট বা রেফারেন্স লিখে রাখুন..."
+                  rows={2}
+                  className="input-field"
+                  style={{ resize: "vertical" }}
+                />
+              </div>
+
               <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                 <button type="button" onClick={() => setShowAddVisaModal(false)} className="btn-secondary" style={{ flex: 1 }}>বাতিল</button>
                 <button type="submit" disabled={creatingVisa} className="btn-primary" style={{ flex: 1 }}>{creatingVisa ? "সংরক্ষণ হচ্ছে..." : "সংরক্ষণ করুন"}</button>
@@ -3114,12 +3203,18 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Received Date & Email */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              {/* Received Date, Received By & Email */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
                 <div>
                   <div style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>রিসিভ তারিখ (Received Date)</div>
                   <div style={{ fontWeight: 700, color: "#38bdf8", fontSize: "0.95rem" }}>
                     {selectedVisa.receivedDate || (selectedVisa.createdAt ? selectedVisa.createdAt.split("T")[0] : "—")}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>রিসিভ করেছেন যিনি (Received By)</div>
+                  <div style={{ fontWeight: 700, color: "#818cf8", fontSize: "0.95rem" }}>
+                    {selectedVisa.receivedBy || (typeof selectedVisa.createdBy === "object" && selectedVisa.createdBy?.name ? selectedVisa.createdBy.name : selectedVisa.createdByName) || "—"}
                   </div>
                 </div>
                 <div>
@@ -3478,7 +3573,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Received Date & Service Type */}
+              {/* Received Date & Received By */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <div>
                   <label className="label-text">
@@ -3492,6 +3587,33 @@ export default function Dashboard() {
                     className="input-field"
                   />
                 </div>
+                <div>
+                  <label className="label-text">
+                    রিসিভ করেছেন যিনি (Received By) <span style={{ color: "#f87171" }}>*</span>
+                  </label>
+                  <select
+                    value={editVisaReceivedBy}
+                    onChange={(e) => setEditVisaReceivedBy(e.target.value)}
+                    className="input-field"
+                    required
+                  >
+                    <option value="">-- কর্মচারী নির্বাচন করুন --</option>
+                    {user?.name && !employeesList.some(emp => emp.name.trim().toLowerCase() === user.name.trim().toLowerCase()) && (
+                      <option value={user.name}>
+                        {user.name} (বর্তমান ইউজার)
+                      </option>
+                    )}
+                    {employeesList.map((emp) => (
+                      <option key={emp._id} value={emp.name}>
+                        {emp.name} {emp.designation ? `(${emp.designation})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Service Type & Visa Type */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <div>
                   <label className="label-text">সার্ভিস ধরন</label>
                   <select
@@ -3523,33 +3645,31 @@ export default function Dashboard() {
                     <option value="passport_renewal">পাসপোর্ট নবায়ন (Passport Renewal)</option>
                   </select>
                 </div>
-              </div>
-
-              <div>
-                <label className="label-text">ভিসা টাইপ</label>
-                <select
-                  value={editVisaType}
-                  onChange={(e) => {
-                    const newVType = e.target.value;
-                    setEditVisaType(newVType);
-                    if (!isMedicalPatient(editServiceType, newVType)) {
-                      const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === editStatus);
-                      if (isCurrentMedStatus) {
-                        setEditStatus("submitted");
+                <div>
+                  <label className="label-text">ভিসা টাইপ</label>
+                  <select
+                    value={editVisaType}
+                    onChange={(e) => {
+                      const newVType = e.target.value;
+                      setEditVisaType(newVType);
+                      if (!isMedicalPatient(editServiceType, newVType)) {
+                        const isCurrentMedStatus = VISA_MEDICAL_STATUSES.some((m) => m.value === editStatus);
+                        if (isCurrentMedStatus) {
+                          setEditStatus("submitted");
+                        }
                       }
-                    }
-                  }}
-                  className="input-field"
-                  style={{
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                  }}
-                >
-                  <option value="">-- ভিসা টাইপ নির্বাচন করুন --</option>
-                  <optgroup label="জনপ্রিয় ও নিয়মিত ক্যাটাগরি">
-                    <option value="ট্যুরিস্ট ভিসা (Tourist Visa)">ট্যুরিস্ট ভিসা (Tourist Visa - T1)</option>
-                    <option value="মেডিকেল পেশেন্ট (Medical Patient)">মেডিকেল পেশেন্ট (Medical Patient - M1/M3)</option>
+                    }}
+                    className="input-field"
+                    style={{
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <option value="">-- ভিসা টাইপ নির্বাচন করুন --</option>
+                    <optgroup label="জনপ্রিয় ও নিয়মিত ক্যাটাগরি">
+                      <option value="ট্যুরিস্ট ভিসা (Tourist Visa)">ট্যুরিস্ট ভিসা (Tourist Visa - T1)</option>
+                      <option value="মেডিকেল পেশেন্ট (Medical Patient)">মেডিকেল পেশেন্ট (Medical Patient - M1/M3)</option>
                     <option value="মেডিকেল এটেন্ডেন্ট (Medical Attendant)">মেডিকেল এটেন্ডেন্ট (Medical Attendant - M2/M4)</option>
                     <option value="স্টুডেন্ট ভিসা (Student Visa)">স্টুডেন্ট ভিসা (Student Visa - S1)</option>
                     <option value="বিজনেস ভিসা (Business Visa)">বিজনেস ভিসা (Business Visa - B1)</option>
@@ -3564,6 +3684,7 @@ export default function Dashboard() {
                   </optgroup>
                 </select>
               </div>
+            </div>
 
               {/* Status */}
               <div>

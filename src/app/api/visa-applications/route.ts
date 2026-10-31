@@ -194,6 +194,8 @@ export async function POST(request: Request) {
       paidAmount,
       feeStatus,
       receivedDate,
+      receivedBy,
+      receivedByEmployeeId,
       estimatedDelivery,
       notes,
       applicationCategory,
@@ -314,6 +316,8 @@ export async function POST(request: Request) {
         dueAmount: computedDue,
         feeStatus: computedFeeStatus,
         receivedDate: effectiveReceivedDate,
+        receivedBy: receivedBy ? receivedBy.trim() : (authUser?.name || ""),
+        receivedByEmployeeId: receivedByEmployeeId ? receivedByEmployeeId.trim() : "",
         estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : undefined,
         notes: notes || "",
         applicationCategory: "family_group",
@@ -348,6 +352,8 @@ export async function POST(request: Request) {
           dueAmount: 0,
           feeStatus: computedFeeStatus,
           receivedDate: effectiveReceivedDate,
+          receivedBy: receivedBy ? receivedBy.trim() : (authUser?.name || ""),
+          receivedByEmployeeId: receivedByEmployeeId ? receivedByEmployeeId.trim() : "",
           estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : undefined,
           notes: notes ? `${notes} | ফ্যামিলি প্যাকেজ (বিল প্রধান: ${applicantName.trim()} - ${headTrackingId})` : `ফ্যামিলি প্যাকেজ (বিল প্রধান: ${applicantName.trim()} - ${headTrackingId})`,
           applicationCategory: "family_group",
@@ -394,6 +400,8 @@ export async function POST(request: Request) {
       dueAmount: computedDue,
       feeStatus: computedFeeStatus,
       receivedDate: effectiveReceivedDate,
+      receivedBy: receivedBy ? receivedBy.trim() : (authUser?.name || ""),
+      receivedByEmployeeId: receivedByEmployeeId ? receivedByEmployeeId.trim() : "",
       estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : undefined,
       notes: notes || "",
       applicationCategory: "individual",
@@ -437,6 +445,8 @@ export async function PUT(request: Request) {
       status,
       feeStatus,
       receivedDate,
+      receivedBy,
+      receivedByEmployeeId,
       totalAmount,
       paidAmount,
       notes,
@@ -458,6 +468,8 @@ export async function PUT(request: Request) {
     if (status) updateFields.status = status;
     if (feeStatus) updateFields.feeStatus = feeStatus;
     if (receivedDate !== undefined) updateFields.receivedDate = receivedDate.trim();
+    if (receivedBy !== undefined) updateFields.receivedBy = receivedBy.trim();
+    if (receivedByEmployeeId !== undefined) updateFields.receivedByEmployeeId = receivedByEmployeeId.trim();
     if (notes !== undefined) updateFields.notes = notes;
     if (estimatedDelivery) updateFields.estimatedDelivery = new Date(estimatedDelivery);
 

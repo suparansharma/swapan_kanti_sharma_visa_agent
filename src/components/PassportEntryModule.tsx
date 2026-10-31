@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
 import {
   FileText,
   Plus,
@@ -45,6 +46,8 @@ export interface PassportEntryItem {
   dueAmount: number;
   onlineTrackId?: string;
   receivedDate?: string;
+  receivedBy?: string;
+  receivedByEmployeeId?: string;
   status: string;
   deliveryDate?: string;
   notes?: string;
@@ -80,7 +83,11 @@ export const PASSPORT_TYPE_OPTIONS = [
 ];
 
 export default function PassportEntryModule() {
+  const { user } = useAuth();
   const [entries, setEntries] = useState<PassportEntryItem[]>([]);
+  const [employeesList, setEmployeesList] = useState<
+    Array<{ _id: string; name: string; employeeId?: string; designation?: string }>
+  >([]);
   const [stats, setStats] = useState({
     total: 0,
     totalContractAmount: 0,
@@ -110,6 +117,7 @@ export default function PassportEntryModule() {
   const [birthDate, setBirthDate] = useState("");
   const [passportType, setPassportType] = useState(PASSPORT_TYPE_OPTIONS[0].value);
   const [receivedDate, setReceivedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [receivedBy, setReceivedBy] = useState("");
   const [totalAmount, setTotalAmount] = useState<number | "">("");
   const [paidAmount, setPaidAmount] = useState<number | "">("");
   const [onlineTrackId, setOnlineTrackId] = useState("");
@@ -183,6 +191,7 @@ export default function PassportEntryModule() {
   const [editBirthDate, setEditBirthDate] = useState("");
   const [editPassportType, setEditPassportType] = useState(PASSPORT_TYPE_OPTIONS[0].value);
   const [editReceivedDate, setEditReceivedDate] = useState("");
+  const [editReceivedBy, setEditReceivedBy] = useState("");
   const [editTotalAmount, setEditTotalAmount] = useState<number | "">("");
   const [editPaidAmount, setEditPaidAmount] = useState<number | "">("");
   const [editOnlineTrackId, setEditOnlineTrackId] = useState("");
@@ -234,6 +243,29 @@ export default function PassportEntryModule() {
       setLoading(false);
     }
   };
+
+  // Fetch employees list for receiver select box
+  const fetchEmployeesList = async () => {
+    try {
+      const res = await fetch("/api/employees?limit=100");
+      if (res.ok) {
+        const data = await res.json();
+        setEmployeesList(data.employees || []);
+      }
+    } catch (err) {
+      console.error("Error fetching employees:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchEmployeesList();
+  }, []);
+
+  useEffect(() => {
+    if (user?.name && !receivedBy) {
+      setReceivedBy(user.name);
+    }
+  }, [user, receivedBy]);
 
   useEffect(() => {
     fetchEntries(1, pageSize, searchQuery, filterStatus, filterCategory);
@@ -297,6 +329,7 @@ export default function PassportEntryModule() {
           birthDate: birthDate.trim(),
           passportType,
           receivedDate: receivedDate || new Date().toISOString().split("T")[0],
+          receivedBy: receivedBy.trim() || user?.name || "",
           totalAmount: numTotal,
           paidAmount: numPaid,
           onlineTrackId: onlineTrackId.trim(),
@@ -318,6 +351,7 @@ export default function PassportEntryModule() {
         setNid("");
         setBirthDate("");
         setReceivedDate(new Date().toISOString().split("T")[0]);
+        setReceivedBy(user?.name || "");
         setTotalAmount("");
         setPaidAmount("");
         setOnlineTrackId("");
@@ -429,6 +463,12 @@ export default function PassportEntryModule() {
     setEditBirthDate(item.birthDate);
     setEditPassportType(item.passportType || PASSPORT_TYPE_OPTIONS[0].value);
     setEditReceivedDate(item.receivedDate || (item.createdAt ? item.createdAt.split("T")[0] : new Date().toISOString().split("T")[0]));
+    setEditReceivedBy(
+      item.receivedBy ||
+      (typeof item.createdBy === "object" && item.createdBy?.name ? item.createdBy.name : item.createdByName) ||
+      user?.name ||
+      ""
+    );
     setEditTotalAmount(item.totalAmount);
     setEditPaidAmount(item.paidAmount);
     setEditOnlineTrackId(item.onlineTrackId || "");
@@ -461,6 +501,7 @@ export default function PassportEntryModule() {
           birthDate: editBirthDate.trim(),
           passportType: editPassportType,
           receivedDate: editReceivedDate,
+          receivedBy: editReceivedBy.trim(),
           totalAmount: numEditTotal,
           paidAmount: numEditPaid,
           onlineTrackId: editOnlineTrackId.trim(),
@@ -581,7 +622,10 @@ export default function PassportEntryModule() {
             <span>রিফ্রেশ</span>
           </button>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              setReceivedBy(user?.name || "");
+              setShowAddModal(true);
+            }}
             className="btn-primary"
             style={{
               display: "flex",
@@ -913,7 +957,7 @@ export default function PassportEntryModule() {
                 <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>Online Track ID</th>
                 <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>চুক্তি ও বকেয়া</th>
                 <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap", width: "160px" }}>স্ট্যাটাস</th>
-                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>তৈরি করেছেন</th>
+                <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>রিসিভ / তৈরি</th>
                 <th style={{ padding: "12px 14px", color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", textAlign: "right", whiteSpace: "nowrap" }}>একশন</th>
               </tr>
             </thead>
@@ -952,7 +996,13 @@ export default function PassportEntryModule() {
                 <tr>
                   <td colSpan={10} style={{ padding: "50px 20px", textAlign: "center", color: "var(--text-muted)" }}>
                     <div style={{ marginBottom: "12px", fontSize: "1.05rem" }}>কোনো পাসপোর্ট এন্ট্রি পাওয়া যায়নি।</div>
-                    <button onClick={() => setShowAddModal(true)} className="btn-primary btn-sm">
+                    <button
+                      onClick={() => {
+                        setReceivedBy(user?.name || "");
+                        setShowAddModal(true);
+                      }}
+                      className="btn-primary btn-sm"
+                    >
                       + প্রথম এন্ট্রি যুক্ত করুন
                     </button>
                   </td>
@@ -1419,7 +1469,7 @@ export default function PassportEntryModule() {
                       <td style={{ padding: "12px 14px", fontSize: "0.8rem", verticalAlign: "middle" }}>
                         <div style={{ fontWeight: 600, color: "var(--text-main)", display: "flex", alignItems: "center", gap: "4px" }}>
                           <UserIcon size={12} style={{ color: "#6366f1" }} />
-                          <span>{creator}</span>
+                          <span>{item.receivedBy || creator}</span>
                         </div>
                         <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
                           {createDate}
@@ -1928,25 +1978,26 @@ export default function PassportEntryModule() {
                   </div>
                 </div>
 
-                {/* Field 6: Passport Type & Received Date */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                      পাসপোর্ট ধরন (Passport Type)
-                    </label>
-                    <select
-                      value={passportType}
-                      onChange={(e) => setPassportType(e.target.value)}
-                      className="input-field"
-                    >
-                      {PASSPORT_TYPE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                {/* Passport Type */}
+                <div>
+                  <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
+                    পাসপোর্ট ধরন (Passport Type)
+                  </label>
+                  <select
+                    value={passportType}
+                    onChange={(e) => setPassportType(e.target.value)}
+                    className="input-field"
+                  >
+                    {PASSPORT_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
+                {/* Received Date & Received By */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                   <div>
                     <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
                       রিসিভ তারিখ (Received Date) *
@@ -1958,6 +2009,30 @@ export default function PassportEntryModule() {
                       required
                       className="input-field"
                     />
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
+                      রিসিভ করেছেন যিনি (Received By) *
+                    </label>
+                    <select
+                      value={receivedBy}
+                      onChange={(e) => setReceivedBy(e.target.value)}
+                      className="input-field"
+                      required
+                    >
+                      <option value="">-- কর্মচারী নির্বাচন করুন --</option>
+                      {user?.name && !employeesList.some(emp => emp.name.trim().toLowerCase() === user.name.trim().toLowerCase()) && (
+                        <option value={user.name}>
+                          {user.name} (বর্তমান ইউজার)
+                        </option>
+                      )}
+                      {employeesList.map((emp) => (
+                        <option key={emp._id} value={emp.name}>
+                          {emp.name} {emp.designation ? `(${emp.designation})` : ""}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -2263,12 +2338,12 @@ export default function PassportEntryModule() {
 
               <div>
                 <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "6px" }}>
-                  নোট বা জরুরি মন্তব্য (Optional Notes)
+                  নোট / মন্তব্য (Note)
                 </label>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="পাসপোর্ট অফিস, ডেলিভারি তারিখ বা অন্যান্য মন্তব্য..."
+                  placeholder="পাসপোর্ট অফিস, ডেলিভারি তারিখ বা অন্যান্য নোট / মন্তব্য..."
                   rows={2}
                   className="input-field"
                   style={{ resize: "vertical" }}
@@ -2396,6 +2471,12 @@ export default function PassportEntryModule() {
                 <span style={{ color: "var(--text-muted)" }}>রিসিভ তারিখ (Received Date):</span>
                 <span style={{ fontWeight: 600, color: "#38bdf8" }}>
                   {selectedEntry.receivedDate || (selectedEntry.createdAt ? selectedEntry.createdAt.split("T")[0] : "—")}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--text-muted)" }}>রিসিভ করেছেন যিনি (Received By):</span>
+                <span style={{ fontWeight: 600, color: "#a5b4fc" }}>
+                  {selectedEntry.receivedBy || (typeof selectedEntry.createdBy === "object" && selectedEntry.createdBy?.name ? selectedEntry.createdBy.name : selectedEntry.createdByName) || "—"}
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -2711,38 +2792,39 @@ export default function PassportEntryModule() {
                 </div>
               </div>
 
-              {/* Passport Type & Received Date */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                <div>
-                  <label className="label-text">
-                    পাসপোর্ট ধরন <span style={{ color: "#f87171" }}>*</span>
-                  </label>
-                  <select
-                    value={editPassportType}
-                    onChange={(e) => setEditPassportType(e.target.value)}
-                    className="input-field"
-                    style={{
-                      color: "var(--text-main)",
-                      backgroundColor: "var(--bg-card)",
-                      lineHeight: "1.5",
-                    }}
-                  >
-                    {PASSPORT_TYPE_OPTIONS.map((opt) => (
-                      <option
-                        key={opt.value}
-                        value={opt.value}
-                        style={{
-                          backgroundColor: "var(--bg-card)",
-                          color: "var(--text-main)",
-                          padding: "6px",
-                        }}
-                      >
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Passport Type */}
+              <div>
+                <label className="label-text">
+                  পাসপোর্ট ধরন <span style={{ color: "#f87171" }}>*</span>
+                </label>
+                <select
+                  value={editPassportType}
+                  onChange={(e) => setEditPassportType(e.target.value)}
+                  className="input-field"
+                  style={{
+                    color: "var(--text-main)",
+                    backgroundColor: "var(--bg-card)",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  {PASSPORT_TYPE_OPTIONS.map((opt) => (
+                    <option
+                      key={opt.value}
+                      value={opt.value}
+                      style={{
+                        backgroundColor: "var(--bg-card)",
+                        color: "var(--text-main)",
+                        padding: "6px",
+                      }}
+                    >
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
+              {/* Received Date & Received By */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <div>
                   <label className="label-text">
                     রিসিভ তারিখ (Received Date) <span style={{ color: "#f87171" }}>*</span>
@@ -2754,6 +2836,30 @@ export default function PassportEntryModule() {
                     onChange={(e) => setEditReceivedDate(e.target.value)}
                     className="input-field"
                   />
+                </div>
+
+                <div>
+                  <label className="label-text">
+                    রিসিভ করেছেন যিনি (Received By) <span style={{ color: "#f87171" }}>*</span>
+                  </label>
+                  <select
+                    value={editReceivedBy}
+                    onChange={(e) => setEditReceivedBy(e.target.value)}
+                    className="input-field"
+                    required
+                  >
+                    <option value="">-- কর্মচারী নির্বাচন করুন --</option>
+                    {user?.name && !employeesList.some(emp => emp.name.trim().toLowerCase() === user.name.trim().toLowerCase()) && (
+                      <option value={user.name}>
+                        {user.name} (বর্তমান ইউজার)
+                      </option>
+                    )}
+                    {employeesList.map((emp) => (
+                      <option key={emp._id} value={emp.name}>
+                        {emp.name} {emp.designation ? `(${emp.designation})` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -2865,11 +2971,11 @@ export default function PassportEntryModule() {
 
               {/* Notes */}
               <div>
-                <label className="label-text">বিশেষ নোট / মন্তব্য (ঐচ্ছিক)</label>
+                <label className="label-text">নোট / মন্তব্য (Note)</label>
                 <textarea
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="প্রয়োজনীয় কোনো তথ্য বা রেফারেন্স লিখে রাখুন..."
+                  placeholder="পাসপোর্ট অফিস, ডেলিভারি তারিখ বা অন্যান্য নোট / মন্তব্য..."
                   rows={2}
                   className="input-field"
                   style={{ resize: "vertical" }}

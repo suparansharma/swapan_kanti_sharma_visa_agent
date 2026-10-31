@@ -58,6 +58,7 @@ export interface DailyLedgerItem {
   notes: string;
   createdAt: string;
   createdByName: string;
+  transactions?: DailyLedgerItem[];
 }
 
 interface SummaryData {
@@ -119,6 +120,9 @@ export default function DailyEntryModule() {
 
   // Modal: View Money Receipt / Voucher
   const [selectedEntry, setSelectedEntry] = useState<DailyLedgerItem | null>(null);
+
+  // Modal: View Transactions History for Tracking Number
+  const [viewingTransactionsItem, setViewingTransactionsItem] = useState<DailyLedgerItem | null>(null);
 
   // Modal: Add New Transaction
   const [showAddModal, setShowAddModal] = useState(false);
@@ -416,6 +420,7 @@ export default function DailyEntryModule() {
       if (res.ok) {
         setSuccessToast("লেনদেনটি মুছে ফেলা হয়েছে।");
         setTimeout(() => setSuccessToast(null), 3000);
+        setViewingTransactionsItem(null);
         fetchDailyEntries();
       }
     } catch (e) {
@@ -1186,33 +1191,201 @@ export default function DailyEntryModule() {
       </div>
 
       {/* TRANSACTIONS TABLE */}
-      <div className="glass-panel report-table-wrapper" style={{ overflow: "hidden" }}>
+      <div
+        className="glass-panel report-table-wrapper"
+        style={{
+          borderRadius: "14px",
+          overflow: "hidden",
+          border: "1px solid var(--border-subtle)",
+          background: "var(--bg-surface)",
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.03)",
+        }}
+      >
         <div style={{ overflowX: "auto" }}>
-          <table className="report-print-table" style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
-            <colgroup>
-              <col className="print-col-acc-date" style={{ width: "11%" }} />
-              <col className="print-col-acc-track" style={{ width: "9%" }} />
-              <col className="print-col-acc-module" style={{ width: "8%" }} />
-              <col className="print-col-acc-name" style={{ width: "22%" }} />
-              <col className="print-col-acc-in" style={{ width: "11%" }} />
-              <col className="print-col-acc-out" style={{ width: "10%" }} />
-              <col className="print-col-acc-profit" style={{ width: "10%" }} />
-              <col className="print-col-acc-due" style={{ width: "9%" }} />
-              <col className="print-col-acc-user" style={{ width: "10%" }} />
-              <col className="no-print" style={{ width: "80px" }} />
+          <table
+            className="report-print-table"
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              textAlign: "left",
+              fontSize: "0.86rem",
+            }}
+          >
+            <colgroup className="print-only">
+              <col className="print-col-acc-date" />
+              <col className="print-col-acc-track" />
+              <col className="print-col-acc-module" />
+              <col className="print-col-acc-name" />
+              <col className="print-col-acc-in" />
+              <col className="print-col-acc-out" />
+              <col className="print-col-acc-profit" />
+              <col className="print-col-acc-due" />
+              <col className="print-col-acc-user" />
             </colgroup>
             <thead>
-              <tr style={{ background: "rgba(255, 255, 255, 0.03)", borderBottom: "1px solid var(--border-subtle)" }}>
-                <th className="print-col-acc-date" style={{ padding: "10px 4px", color: "var(--text-muted)", fontWeight: 600 }}>তারিখ ও সময়</th>
-                <th className="print-col-acc-track" style={{ padding: "10px 4px", color: "var(--text-muted)", fontWeight: 600 }}>ট্র্যাকিং নম্বর</th>
-                <th className="print-col-acc-module" style={{ padding: "10px 4px", color: "var(--text-muted)", fontWeight: 600 }}>মডিউল</th>
-                <th className="print-col-acc-name" style={{ padding: "10px 6px", color: "var(--text-muted)", fontWeight: 600 }}>গ্রাহকের নাম ও বিবরণ</th>
-                <th className="print-col-acc-in" style={{ padding: "10px 6px", color: "#34d399", fontWeight: 700 }}>জমা (Cash In)</th>
-                <th className="print-col-acc-out" style={{ padding: "10px 6px", color: "#f87171", fontWeight: 700 }}>খরচ (Expense)</th>
-                <th className="print-col-acc-profit" style={{ padding: "10px 6px", color: "#38bdf8", fontWeight: 700 }}>নিট লাভ (Profit)</th>
-                <th className="print-col-acc-due" style={{ padding: "10px 6px", color: "#fbbf24", fontWeight: 700 }}>বকেয়া টাকা</th>
-                <th className="print-col-acc-user" style={{ padding: "10px 4px", color: "var(--text-muted)", fontWeight: 600 }}>এন্ট্রি করেছেন</th>
-                <th className="no-print" style={{ padding: "10px 14px", color: "var(--text-muted)", fontWeight: 600, textAlign: "right" }}>
+              <tr
+                style={{
+                  background: "var(--table-head-bg, rgba(255, 255, 255, 0.04))",
+                  borderBottom: "2px solid var(--border-subtle)",
+                }}
+              >
+                <th
+                  className="print-col-acc-date"
+                  style={{
+                    padding: "13px 14px",
+                    color: "var(--text-muted)",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    textAlign: "left",
+                    whiteSpace: "nowrap",
+                    minWidth: "125px",
+                  }}
+                >
+                  তারিখ ও সময়
+                </th>
+                <th
+                  className="print-col-acc-track"
+                  style={{
+                    padding: "13px 12px",
+                    color: "var(--text-muted)",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    textAlign: "center",
+                    whiteSpace: "nowrap",
+                    minWidth: "115px",
+                  }}
+                >
+                  ট্র্যাকিং নম্বর
+                </th>
+                <th
+                  className="print-col-acc-module"
+                  style={{
+                    padding: "13px 10px",
+                    color: "var(--text-muted)",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    textAlign: "center",
+                    whiteSpace: "nowrap",
+                    minWidth: "95px",
+                  }}
+                >
+                  মডিউল
+                </th>
+                <th
+                  className="print-col-acc-name"
+                  style={{
+                    padding: "13px 14px",
+                    color: "var(--text-muted)",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    textAlign: "left",
+                    minWidth: "190px",
+                  }}
+                >
+                  গ্রাহকের নাম ও বিবরণ
+                </th>
+                <th
+                  className="print-col-acc-in"
+                  style={{
+                    padding: "13px 14px",
+                    color: "#10b981",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    textAlign: "right",
+                    whiteSpace: "nowrap",
+                    minWidth: "125px",
+                  }}
+                >
+                  জমা (Cash In)
+                </th>
+                <th
+                  className="print-col-acc-out"
+                  style={{
+                    padding: "13px 14px",
+                    color: "#f87171",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    textAlign: "right",
+                    whiteSpace: "nowrap",
+                    minWidth: "125px",
+                  }}
+                >
+                  খরচ (Expense)
+                </th>
+                <th
+                  className="print-col-acc-profit"
+                  style={{
+                    padding: "13px 14px",
+                    color: "#38bdf8",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    textAlign: "right",
+                    whiteSpace: "nowrap",
+                    minWidth: "125px",
+                  }}
+                >
+                  নিট লাভ (Profit)
+                </th>
+                <th
+                  className="print-col-acc-due"
+                  style={{
+                    padding: "13px 14px",
+                    color: "#fbbf24",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    textAlign: "right",
+                    whiteSpace: "nowrap",
+                    minWidth: "115px",
+                  }}
+                >
+                  বকেয়া টাকা
+                </th>
+                <th
+                  className="print-col-acc-user"
+                  style={{
+                    padding: "13px 12px",
+                    color: "var(--text-muted)",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    textAlign: "center",
+                    whiteSpace: "nowrap",
+                    minWidth: "120px",
+                  }}
+                >
+                  এন্ট্রি করেছেন
+                </th>
+                <th
+                  className="no-print"
+                  style={{
+                    padding: "13px 16px",
+                    color: "var(--text-muted)",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    textAlign: "center",
+                    whiteSpace: "nowrap",
+                    minWidth: "210px",
+                  }}
+                >
                   একশন
                 </th>
               </tr>
@@ -1291,30 +1464,73 @@ export default function DailyEntryModule() {
                       }}
                       className="table-row-hover"
                     >
-                      {/* Date & Time */}
-                      <td className="print-col-acc-date print-td-date" style={{ padding: "10px 4px", verticalAlign: "middle" }}>
-                        <div style={{ fontWeight: 600, color: "var(--text-main)", fontSize: "0.84rem" }}>{formattedDate}</div>
-                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "1px" }} className="print-note">
-                          {formattedTime}
+                      {/* 1. Date & Time */}
+                      <td
+                        className="print-col-acc-date print-td-date"
+                        style={{
+                          padding: "13px 14px",
+                          verticalAlign: "middle",
+                          textAlign: "left",
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, color: "var(--text-main)", fontSize: "0.84rem", whiteSpace: "nowrap" }}>
+                          {formattedDate}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.72rem",
+                            color: "var(--text-muted)",
+                            marginTop: "2px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            whiteSpace: "nowrap",
+                          }}
+                          className="print-note"
+                        >
+                          <Clock size={11} className="no-print" style={{ opacity: 0.6 }} />
+                          <span>{formattedTime}</span>
                         </div>
                       </td>
 
-                      {/* Reference / Tracking ID */}
-                      <td className="print-col-acc-track print-td-mono" style={{ padding: "10px 4px", verticalAlign: "middle", textAlign: "center" }}>
+                      {/* 2. Reference / Tracking ID */}
+                      <td
+                        className="print-col-acc-track print-td-mono"
+                        style={{
+                          padding: "13px 12px",
+                          verticalAlign: "middle",
+                          textAlign: "center",
+                        }}
+                      >
                         <span
                           className="print-td-mono"
                           style={{
+                            display: "inline-block",
                             fontWeight: 800,
-                            color: item.moduleType === "passport" ? "#34d399" : "#818cf8",
-                            fontSize: "0.85rem",
+                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                            color: item.moduleType === "passport" ? "#10b981" : "#6366f1",
+                            fontSize: "0.82rem",
+                            padding: "3px 9px",
+                            borderRadius: "6px",
+                            background: item.moduleType === "passport" ? "rgba(16, 185, 129, 0.1)" : "rgba(99, 102, 241, 0.1)",
+                            border: `1px solid ${item.moduleType === "passport" ? "rgba(16, 185, 129, 0.25)" : "rgba(99, 102, 241, 0.25)"}`,
+                            whiteSpace: "nowrap",
+                            letterSpacing: "0.02em",
                           }}
                         >
                           {item.referenceId}
                         </span>
                       </td>
 
-                      {/* Module Badge */}
-                      <td className="print-col-acc-module" style={{ padding: "10px 4px", verticalAlign: "middle", textAlign: "center" }}>
+                      {/* 3. Module Badge */}
+                      <td
+                        className="print-col-acc-module"
+                        style={{
+                          padding: "13px 10px",
+                          verticalAlign: "middle",
+                          textAlign: "center",
+                        }}
+                      >
                         <span
                           className="no-print"
                           style={{
@@ -1323,13 +1539,14 @@ export default function DailyEntryModule() {
                             gap: "4px",
                             fontSize: "0.74rem",
                             fontWeight: 700,
-                            padding: "3px 7px",
+                            padding: "3px 8px",
                             borderRadius: "999px",
                             background:
                               item.moduleType === "passport"
-                                ? "rgba(16, 185, 129, 0.15)"
-                                : "rgba(99, 102, 241, 0.15)",
+                                ? "rgba(16, 185, 129, 0.12)"
+                                : "rgba(99, 102, 241, 0.12)",
                             color: item.moduleType === "passport" ? "#34d399" : "#818cf8",
+                            whiteSpace: "nowrap",
                           }}
                         >
                           {item.moduleType === "passport" ? <BookOpen size={11} /> : <Plane size={11} />}
@@ -1340,33 +1557,64 @@ export default function DailyEntryModule() {
                         </span>
                       </td>
 
-                      {/* Applicant & Phone */}
-                      <td className="print-col-acc-name print-td-name" style={{ padding: "10px 6px", verticalAlign: "middle" }}>
-                        <div style={{ fontWeight: 700, color: "var(--text-main)", fontSize: "0.86rem" }}>{item.applicantName}</div>
+                      {/* 4. Applicant & Phone */}
+                      <td
+                        className="print-col-acc-name print-td-name"
+                        style={{
+                          padding: "13px 14px",
+                          verticalAlign: "middle",
+                          textAlign: "left",
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, color: "var(--text-main)", fontSize: "0.88rem" }}>
+                          {item.applicantName}
+                        </div>
                         <div
                           style={{
-                            fontSize: "0.74rem",
+                            fontSize: "0.75rem",
                             color: "var(--text-secondary)",
-                            marginTop: "1px",
+                            marginTop: "2px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
                           }}
                           className="print-note"
                         >
-                          <span className="no-print" style={{ marginRight: "3px" }}>
-                            <Phone size={10} style={{ color: "var(--text-muted)", display: "inline" }} />
+                          <span className="no-print">
+                            <Phone size={11} style={{ color: "var(--text-muted)" }} />
                           </span>
                           <span>{item.phone || "—"}</span>
                         </div>
                         {item.notes && (
-                          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "1px" }} className="print-note">
+                          <div
+                            style={{
+                              fontSize: "0.71rem",
+                              color: "var(--text-muted)",
+                              marginTop: "3px",
+                              display: "inline-block",
+                              background: "rgba(255, 255, 255, 0.03)",
+                              padding: "1px 6px",
+                              borderRadius: "4px",
+                              border: "1px solid var(--border-subtle)",
+                            }}
+                            className="print-note"
+                          >
                             নোট: {item.notes}
                           </div>
                         )}
                       </td>
 
-                      {/* Cash In */}
-                      <td className="print-col-acc-in print-td-num" style={{ padding: "10px 6px", verticalAlign: "middle", textAlign: "right" }}>
+                      {/* 5. Cash In */}
+                      <td
+                        className="print-col-acc-in print-td-num"
+                        style={{
+                          padding: "13px 14px",
+                          verticalAlign: "middle",
+                          textAlign: "right",
+                        }}
+                      >
                         {item.inAmount > 0 ? (
-                          <span style={{ fontWeight: 800, color: "#34d399", fontSize: "0.88rem" }}>
+                          <span style={{ fontWeight: 800, color: "#10b981", fontSize: "0.9rem", whiteSpace: "nowrap" }}>
                             +৳ {item.inAmount.toLocaleString("en-IN")}
                           </span>
                         ) : (
@@ -1374,10 +1622,17 @@ export default function DailyEntryModule() {
                         )}
                       </td>
 
-                      {/* Cash Out / Expense */}
-                      <td className="print-col-acc-out print-td-num" style={{ padding: "10px 6px", verticalAlign: "middle", textAlign: "right" }}>
+                      {/* 6. Cash Out / Expense */}
+                      <td
+                        className="print-col-acc-out print-td-num"
+                        style={{
+                          padding: "13px 14px",
+                          verticalAlign: "middle",
+                          textAlign: "right",
+                        }}
+                      >
                         {item.outAmount > 0 ? (
-                          <span style={{ fontWeight: 800, color: "#f87171", fontSize: "0.88rem" }}>
+                          <span style={{ fontWeight: 800, color: "#f87171", fontSize: "0.9rem", whiteSpace: "nowrap" }}>
                             -৳ {item.outAmount.toLocaleString("en-IN")}
                           </span>
                         ) : (
@@ -1385,8 +1640,15 @@ export default function DailyEntryModule() {
                         )}
                       </td>
 
-                      {/* Profit (নিট লাভ) */}
-                      <td className="print-col-acc-profit print-td-num" style={{ padding: "10px 6px", verticalAlign: "middle", textAlign: "right" }}>
+                      {/* 7. Profit (নিট লাভ) */}
+                      <td
+                        className="print-col-acc-profit print-td-num"
+                        style={{
+                          padding: "13px 14px",
+                          verticalAlign: "middle",
+                          textAlign: "right",
+                        }}
+                      >
                         {(() => {
                           const profitVal = item.profit !== undefined ? item.profit : item.inAmount - item.outAmount;
                           const isPositive = profitVal > 0;
@@ -1397,14 +1659,15 @@ export default function DailyEntryModule() {
                                 style={{
                                   fontWeight: 800,
                                   color: isPositive ? "#38bdf8" : isNegative ? "#f87171" : "var(--text-muted)",
-                                  fontSize: "0.88rem",
+                                  fontSize: "0.9rem",
+                                  whiteSpace: "nowrap",
                                 }}
                               >
                                 {isPositive ? "+" : ""}
                                 ৳ {profitVal.toLocaleString("en-IN")}
                               </span>
                               {item.fileExpense !== undefined && item.fileExpense > 0 && (
-                                <div className="no-print" style={{ fontSize: "0.71rem", color: "var(--text-muted)", marginTop: "1px" }}>
+                                <div className="no-print" style={{ fontSize: "0.71rem", color: "var(--text-muted)", marginTop: "2px", whiteSpace: "nowrap" }}>
                                   খরচ: -৳ {item.fileExpense.toLocaleString("en-IN")}
                                 </div>
                               )}
@@ -1413,59 +1676,131 @@ export default function DailyEntryModule() {
                         })()}
                       </td>
 
-                      {/* Due Amount */}
-                      <td className="print-col-acc-due print-td-num" style={{ padding: "10px 6px", verticalAlign: "middle", textAlign: "right" }}>
+                      {/* 8. Due Amount */}
+                      <td
+                        className="print-col-acc-due print-td-num"
+                        style={{
+                          padding: "13px 14px",
+                          verticalAlign: "middle",
+                          textAlign: "right",
+                        }}
+                      >
                         <span
                           style={{
                             fontWeight: 800,
-                            color: item.dueAmount > 0 ? "#fbbf24" : "#34d399",
-                            fontSize: "0.88rem",
+                            color: item.dueAmount > 0 ? "#fbbf24" : "#10b981",
+                            fontSize: "0.9rem",
+                            whiteSpace: "nowrap",
                           }}
                         >
                           ৳ {item.dueAmount.toLocaleString("en-IN")}
                         </span>
                       </td>
 
-                      {/* Created By */}
-                      <td className="print-col-acc-user" style={{ padding: "10px 4px", verticalAlign: "middle", textAlign: "center", fontSize: "0.78rem" }}>
-                        <div style={{ fontWeight: 600, color: "var(--text-main)" }}>{item.createdByName || "এডমিন"}</div>
+                      {/* 9. Created By */}
+                      <td
+                        className="print-col-acc-user"
+                        style={{
+                          padding: "13px 12px",
+                          verticalAlign: "middle",
+                          textAlign: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            padding: "3px 9px",
+                            borderRadius: "6px",
+                            background: "rgba(255, 255, 255, 0.03)",
+                            border: "1px solid var(--border-subtle)",
+                            fontSize: "0.78rem",
+                            fontWeight: 600,
+                            color: "var(--text-main)",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <User size={12} style={{ color: "var(--text-muted)" }} />
+                          <span>{item.createdByName || "এডমিন"}</span>
+                        </span>
                       </td>
 
-                      {/* Action: Voucher / Delete */}
-                      <td style={{ padding: "10px 14px", textAlign: "right" }} className="no-print">
-                        <div style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
+                      {/* 10. Action: View Transactions & Voucher */}
+                      <td
+                        style={{
+                          padding: "13px 16px",
+                          verticalAlign: "middle",
+                          textAlign: "center",
+                        }}
+                        className="no-print"
+                      >
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            gap: "6px",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
                           <button
-                            onClick={() => setSelectedEntry(item)}
+                            onClick={() => setViewingTransactionsItem(item)}
+                            className="btn-primary btn-sm"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              padding: "6px 11px",
+                              fontSize: "0.76rem",
+                              fontWeight: 700,
+                              borderRadius: "7px",
+                              background: "linear-gradient(135deg, #0284c7, #2563eb)",
+                              color: "#ffffff",
+                              border: "none",
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                              boxShadow: "0 2px 5px rgba(2, 132, 199, 0.25)",
+                              transition: "all 0.15s ease",
+                            }}
+                            title="এই ট্র্যাকিং নম্বরের সকল লেনদেন হিস্ট্রি দেখুন"
+                          >
+                            <FileText size={13} />
+                            <span>লেনদেন সমূহ</span>
+                            {item.transactions && item.transactions.length > 0 && (
+                              <span
+                                style={{
+                                  background: "rgba(255, 255, 255, 0.3)",
+                                  borderRadius: "10px",
+                                  padding: "1px 6px",
+                                  fontSize: "0.7rem",
+                                  fontWeight: 800,
+                                  marginLeft: "2px",
+                                }}
+                              >
+                                {item.transactions.length}
+                              </span>
+                            )}
+                          </button>
+
+                          <button
+                            onClick={() => setSelectedEntry(item.transactions?.[0] || item)}
                             className="btn-secondary btn-sm"
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
                               gap: "4px",
-                              padding: "5px 8px",
+                              padding: "6px 10px",
                               fontSize: "0.76rem",
+                              fontWeight: 600,
+                              borderRadius: "7px",
+                              whiteSpace: "nowrap",
+                              cursor: "pointer",
                             }}
                             title="মানি রিসিট ভাউচার দেখুন"
                           >
-                            <Eye size={13} />
+                            <Receipt size={13} />
                             <span>রিসিট</span>
                           </button>
-
-                          {item.isTransactionRecord && (
-                            <button
-                              onClick={() => handleDeleteTransaction(item.id, item.referenceId)}
-                              style={{
-                                background: "rgba(239, 68, 68, 0.12)",
-                                border: "1px solid rgba(239, 68, 68, 0.3)",
-                                color: "#f87171",
-                                padding: "5px 6px",
-                                borderRadius: "4px",
-                                cursor: "pointer",
-                              }}
-                              title="লেনদেন মুছুন"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -2313,6 +2648,333 @@ export default function DailyEntryModule() {
               >
                 বন্ধ করুন
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: VIEW TRANSACTIONS HISTORY FOR TRACKING NUMBER */}
+      {viewingTransactionsItem && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "var(--modal-backdrop)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
+          }}
+          onClick={() => setViewingTransactionsItem(null)}
+        >
+          <div
+            className="modal-container"
+            style={{
+              background: "var(--bg-modal)",
+              border: "1px solid var(--border-subtle)",
+              borderRadius: "var(--radius-lg)",
+              width: "100%",
+              maxWidth: "880px",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              padding: "24px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+              position: "relative",
+              overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                borderBottom: "1px solid var(--border-subtle)",
+                paddingBottom: "16px",
+                marginBottom: "16px",
+              }}
+            >
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                  <h2 style={{ fontSize: "1.25rem", fontWeight: 800, color: "var(--text-main)", margin: 0 }}>
+                    লেনদেন হিস্ট্রি ও লেজার (Transaction History)
+                  </h2>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-mono, monospace)",
+                      fontWeight: 800,
+                      color: viewingTransactionsItem.moduleType === "passport" ? "#10b981" : "#6366f1",
+                      background: viewingTransactionsItem.moduleType === "passport" ? "rgba(16, 185, 129, 0.15)" : "rgba(99, 102, 241, 0.15)",
+                      padding: "3px 10px",
+                      borderRadius: "6px",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    {viewingTransactionsItem.referenceId}
+                  </span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                      background: viewingTransactionsItem.moduleType === "passport" ? "rgba(16, 185, 129, 0.12)" : "rgba(99, 102, 241, 0.12)",
+                      color: viewingTransactionsItem.moduleType === "passport" ? "#34d399" : "#818cf8",
+                    }}
+                  >
+                    {viewingTransactionsItem.moduleType === "passport" ? <BookOpen size={11} /> : <Plane size={11} />}
+                    <span>{viewingTransactionsItem.moduleLabel}</span>
+                  </span>
+                </div>
+                <div style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "4px" }}>
+                  আবেদনকারী: <strong style={{ color: "var(--text-main)" }}>{viewingTransactionsItem.applicantName}</strong>
+                  {viewingTransactionsItem.phone && viewingTransactionsItem.phone !== "—" && (
+                    <span style={{ marginLeft: "12px", color: "var(--text-muted)" }}>
+                      📞 {viewingTransactionsItem.phone}
+                    </span>
+                  )}
+                  {viewingTransactionsItem.serviceTitle && (
+                    <span style={{ marginLeft: "12px", color: "var(--text-muted)" }}>
+                      • {viewingTransactionsItem.serviceTitle}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingTransactionsItem(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                  padding: "4px",
+                  borderRadius: "4px",
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Financial Summary Badges inside Modal */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                gap: "10px",
+                marginBottom: "16px",
+              }}
+            >
+              <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", border: "1px solid var(--border-subtle)" }}>
+                <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontWeight: 600 }}>মোট ফাইল চুক্তি</div>
+                <div style={{ fontSize: "1rem", fontWeight: 800, color: "var(--text-main)", marginTop: "2px" }}>
+                  ৳ {(viewingTransactionsItem.totalAmount || 0).toLocaleString("en-IN")}
+                </div>
+              </div>
+              <div style={{ padding: "10px 12px", background: "rgba(16, 185, 129, 0.08)", borderRadius: "8px", border: "1px solid rgba(16, 185, 129, 0.25)" }}>
+                <div style={{ fontSize: "0.72rem", color: "#34d399", fontWeight: 600 }}>মোট আদায় / জমা (In)</div>
+                <div style={{ fontSize: "1rem", fontWeight: 800, color: "#34d399", marginTop: "2px" }}>
+                  +৳ {(viewingTransactionsItem.inAmount || 0).toLocaleString("en-IN")}
+                </div>
+              </div>
+              <div style={{ padding: "10px 12px", background: "rgba(239, 68, 68, 0.08)", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.25)" }}>
+                <div style={{ fontSize: "0.72rem", color: "#f87171", fontWeight: 600 }}>মোট ফাইল খরচ (Out)</div>
+                <div style={{ fontSize: "1rem", fontWeight: 800, color: "#f87171", marginTop: "2px" }}>
+                  -৳ {(viewingTransactionsItem.outAmount || 0).toLocaleString("en-IN")}
+                </div>
+              </div>
+              <div style={{ padding: "10px 12px", background: "rgba(14, 165, 233, 0.08)", borderRadius: "8px", border: "1px solid rgba(14, 165, 233, 0.25)" }}>
+                <div style={{ fontSize: "0.72rem", color: "#38bdf8", fontWeight: 600 }}>নিট লাভ (Profit)</div>
+                <div style={{ fontSize: "1rem", fontWeight: 800, color: "#38bdf8", marginTop: "2px" }}>
+                  {((viewingTransactionsItem.profit ?? (viewingTransactionsItem.inAmount - viewingTransactionsItem.outAmount)) >= 0 ? "+" : "")}
+                  ৳ {((viewingTransactionsItem.profit ?? (viewingTransactionsItem.inAmount - viewingTransactionsItem.outAmount))).toLocaleString("en-IN")}
+                </div>
+              </div>
+              <div style={{ padding: "10px 12px", background: "rgba(245, 158, 11, 0.08)", borderRadius: "8px", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+                <div style={{ fontSize: "0.72rem", color: "#fbbf24", fontWeight: 600 }}>অবশিষ্ট বকেয়া (Due)</div>
+                <div style={{ fontSize: "1rem", fontWeight: 800, color: viewingTransactionsItem.dueAmount > 0 ? "#fbbf24" : "#34d399", marginTop: "2px" }}>
+                  ৳ {(viewingTransactionsItem.dueAmount || 0).toLocaleString("en-IN")}
+                </div>
+              </div>
+            </div>
+
+            {/* Transactions History Table */}
+            <div style={{ flex: 1, overflowY: "auto", border: "1px solid var(--border-subtle)", borderRadius: "8px", background: "var(--bg-card)" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.82rem" }}>
+                <thead>
+                  <tr style={{ background: "rgba(255, 255, 255, 0.04)", borderBottom: "1px solid var(--border-subtle)", position: "sticky", top: 0, zIndex: 1 }}>
+                    <th style={{ padding: "9px 10px", color: "var(--text-muted)", fontWeight: 600 }}>#</th>
+                    <th style={{ padding: "9px 10px", color: "var(--text-muted)", fontWeight: 600 }}>তারিখ ও সময়</th>
+                    <th style={{ padding: "9px 10px", color: "var(--text-muted)", fontWeight: 600 }}>ভাউচার / আইডি</th>
+                    <th style={{ padding: "9px 10px", color: "var(--text-muted)", fontWeight: 600 }}>ধরন</th>
+                    <th style={{ padding: "9px 10px", color: "var(--text-muted)", fontWeight: 600 }}>খাত ও বিবরণ</th>
+                    <th style={{ padding: "9px 10px", color: "var(--text-muted)", fontWeight: 600 }}>মাধ্যম</th>
+                    <th style={{ padding: "9px 10px", color: "#34d399", fontWeight: 700, textAlign: "right" }}>জমা (Cash In)</th>
+                    <th style={{ padding: "9px 10px", color: "#f87171", fontWeight: 700, textAlign: "right" }}>খরচ (Expense)</th>
+                    <th style={{ padding: "9px 10px", color: "var(--text-muted)", fontWeight: 600 }}>মন্তব্য / নোট</th>
+                    <th style={{ padding: "9px 10px", color: "var(--text-muted)", fontWeight: 600 }}>লিপিবদ্ধকারী</th>
+                    <th style={{ padding: "9px 10px", color: "var(--text-muted)", fontWeight: 600, textAlign: "center" }}>একশন</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(!viewingTransactionsItem.transactions || viewingTransactionsItem.transactions.length === 0) ? (
+                    <tr>
+                      <td colSpan={11} style={{ padding: "30px", textAlign: "center", color: "var(--text-muted)" }}>
+                        কোনো লেনদেন রেকর্ড পাওয়া যায়নি।
+                      </td>
+                    </tr>
+                  ) : (
+                    viewingTransactionsItem.transactions.map((tx, idx) => {
+                      const tDate = new Date(tx.createdAt);
+                      const fDate = tDate.toLocaleDateString("bn-BD", { day: "2-digit", month: "short", year: "numeric" });
+                      const fTime = tDate.toLocaleTimeString("bn-BD", { hour: "2-digit", minute: "2-digit" });
+                      const isCol = tx.entryType === "collection" || tx.inAmount > 0;
+
+                      return (
+                        <tr
+                          key={tx.id || idx}
+                          style={{
+                            borderBottom: "1px solid var(--border-subtle)",
+                            background: idx % 2 === 0 ? "transparent" : "rgba(255, 255, 255, 0.015)",
+                          }}
+                        >
+                          <td style={{ padding: "9px 10px", color: "var(--text-muted)", fontWeight: 700 }}>
+                            {idx + 1}
+                          </td>
+                          <td style={{ padding: "9px 10px", whiteSpace: "nowrap" }}>
+                            <div style={{ fontWeight: 600, color: "var(--text-main)" }}>{fDate}</div>
+                            <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{fTime}</div>
+                          </td>
+                          <td style={{ padding: "9px 10px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                            {tx.transactionNumber || tx.referenceId || "—"}
+                          </td>
+                          <td style={{ padding: "9px 10px" }}>
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                padding: "2px 8px",
+                                borderRadius: "999px",
+                                fontSize: "0.72rem",
+                                fontWeight: 700,
+                                background: isCol ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                                color: isCol ? "#34d399" : "#f87171",
+                              }}
+                            >
+                              {isCol ? "জমা (In)" : "খরচ (Out)"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "9px 10px", color: "var(--text-main)", fontWeight: 600 }}>
+                            {tx.category || (isCol ? "কিস্তি / জমা" : "ফাইল খরচ")}
+                          </td>
+                          <td style={{ padding: "9px 10px", color: "var(--text-muted)", fontSize: "0.75rem", textTransform: "capitalize" }}>
+                            {tx.paymentMethod === "cash" ? "ক্যাশ" : tx.paymentMethod === "bank" ? "ব্যাংক" : tx.paymentMethod === "bkash" ? "বিকাশ" : tx.paymentMethod || "ক্যাশ"}
+                          </td>
+                          <td style={{ padding: "9px 10px", textAlign: "right" }}>
+                            {tx.inAmount > 0 ? (
+                              <span style={{ fontWeight: 800, color: "#34d399" }}>
+                                +৳ {tx.inAmount.toLocaleString("en-IN")}
+                              </span>
+                            ) : "—"}
+                          </td>
+                          <td style={{ padding: "9px 10px", textAlign: "right" }}>
+                            {tx.outAmount > 0 ? (
+                              <span style={{ fontWeight: 800, color: "#f87171" }}>
+                                -৳ {tx.outAmount.toLocaleString("en-IN")}
+                              </span>
+                            ) : "—"}
+                          </td>
+                          <td style={{ padding: "9px 10px", color: "var(--text-muted)", fontSize: "0.75rem", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={tx.notes || ""}>
+                            {tx.notes || "—"}
+                          </td>
+                          <td style={{ padding: "9px 10px", color: "var(--text-secondary)", fontSize: "0.75rem" }}>
+                            {tx.createdByName || "সিস্টেম"}
+                          </td>
+                          <td style={{ padding: "9px 10px", textAlign: "center", whiteSpace: "nowrap" }}>
+                            <div style={{ display: "inline-flex", gap: "5px", alignItems: "center" }}>
+                              <button
+                                onClick={() => setSelectedEntry(tx)}
+                                className="btn-secondary btn-sm"
+                                style={{
+                                  padding: "3px 7px",
+                                  fontSize: "0.72rem",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                }}
+                                title="এই লেনদেনের মানি রিসিট দেখুন"
+                              >
+                                <Eye size={12} />
+                                <span>রিসিট</span>
+                              </button>
+                              {tx.isTransactionRecord && (
+                                <button
+                                  onClick={() => handleDeleteTransaction(tx.id, tx.referenceId)}
+                                  style={{
+                                    background: "rgba(239, 68, 68, 0.12)",
+                                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                                    color: "#f87171",
+                                    padding: "3px 6px",
+                                    borderRadius: "4px",
+                                    cursor: "pointer",
+                                    fontSize: "0.72rem",
+                                  }}
+                                  title="এই লেনদেন মুছুন"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", flexWrap: "wrap", gap: "10px" }}>
+              <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                মোট লেনদেন সংখ্যা: <strong style={{ color: "var(--text-main)" }}>{viewingTransactionsItem.transactions?.length || 0} টি</strong>
+              </div>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  onClick={() => {
+                    // Prepopulate Add Modal with this file's referenceId
+                    setFormRefId(viewingTransactionsItem.referenceId);
+                    setFormApplicantName(viewingTransactionsItem.applicantName);
+                    setFormPhone(viewingTransactionsItem.phone !== "—" ? viewingTransactionsItem.phone : "");
+                    setFormServiceTitle(viewingTransactionsItem.serviceTitle);
+                    setFormModuleType(viewingTransactionsItem.moduleType);
+                    setViewingTransactionsItem(null);
+                    setShowAddModal(true);
+                  }}
+                  className="btn-primary btn-sm"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.8rem", padding: "6px 14px" }}
+                >
+                  <Plus size={14} />
+                  <span>+ নতুন লেনদেন এন্ট্রি দিন</span>
+                </button>
+                <button
+                  onClick={() => setViewingTransactionsItem(null)}
+                  className="btn-secondary btn-sm"
+                  style={{ fontSize: "0.8rem", padding: "6px 14px" }}
+                >
+                  বন্ধ করুন
+                </button>
+              </div>
             </div>
           </div>
         </div>

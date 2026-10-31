@@ -19,6 +19,8 @@ export interface IPassportEntry extends Document {
     | "ready_for_pickup"
     | "delivered";
   receivedDate?: string; // রিসিভ তারিখ / Received Date
+  receivedBy?: string; // রিসিভ করেছেন যিনি (Received By)
+  receivedByEmployeeId?: string; // Employee ID of receiver
   deliveryDate?: Date;
   notes?: string;
   applicationCategory?: "individual" | "family_group"; // আবেদনের ধরন
@@ -110,6 +112,16 @@ const PassportEntrySchema = new Schema<IPassportEntry>(
       type: String,
       default: "",
       trim: true,
+    },
+    receivedBy: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    receivedByEmployeeId: {
+      type: String,
+      trim: true,
+      default: "",
     },
     deliveryDate: {
       type: Date,

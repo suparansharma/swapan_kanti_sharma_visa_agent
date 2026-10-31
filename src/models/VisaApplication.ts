@@ -18,6 +18,8 @@ export interface IVisaApplication extends Document {
   dueAmount: number;   // বকেয়া টাকা
   feeStatus: "paid" | "partial" | "pending";
   receivedDate?: string; // রিসিভ তারিখ / Received Date
+  receivedBy?: string; // রিসিভ করেছেন যিনি (Received By Employee Name)
+  receivedByEmployeeId?: string; // রিসিভকারী কর্মীর আইডি
   notes?: string;
   applicationCategory?: "individual" | "family_group"; // আবেদনের ধরন
   isFamilyHead?: boolean; // পরিবার প্রধান কিনা
@@ -112,6 +114,16 @@ const VisaApplicationSchema = new Schema<IVisaApplication>(
       default: "pending",
     },
     receivedDate: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    receivedBy: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    receivedByEmployeeId: {
       type: String,
       default: "",
       trim: true,

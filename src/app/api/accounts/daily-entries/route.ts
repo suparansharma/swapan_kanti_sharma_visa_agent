@@ -306,18 +306,104 @@ export async function GET(request: Request) {
       });
     }
 
+    // 5. Group unifiedList by referenceId (Tracking Number)
+    // One single row per tracking number with aggregated Cash In, Expense, Net Profit, Due, and full transaction history
+    const groupedMap = new Map<string, any>();
+
+    for (const item of unifiedList) {
+      const ref = item.referenceId ? item.referenceId.trim().toUpperCase() : "";
+      const groupKey = ref && ref !== "—" ? ref : `STANDALONE_${item.id}`;
+
+      if (!groupedMap.has(groupKey)) {
+        groupedMap.set(groupKey, {
+          id: item.id,
+          isTransactionRecord: item.isTransactionRecord,
+          transactionNumber: item.transactionNumber || ref || item.id,
+          entryType: item.entryType,
+          referenceId: item.referenceId || "—",
+          moduleType: item.moduleType,
+          moduleLabel: item.moduleLabel,
+          applicantName: item.applicantName,
+          phone: item.phone,
+          serviceTitle: item.serviceTitle,
+          category: item.category,
+          totalAmount: item.totalAmount || 0,
+          inAmount: item.inAmount || 0,
+          outAmount: item.outAmount || 0,
+          profit: 0,
+          fileExpense: item.outAmount || 0,
+          dueAmount: item.dueAmount || 0,
+          paymentStatus: item.paymentStatus,
+          paymentMethod: item.paymentMethod,
+          notes: item.notes || "",
+          createdAt: item.createdAt,
+          createdByName: item.createdByName,
+          transactions: [item],
+        });
+      } else {
+        const existing = groupedMap.get(groupKey);
+        existing.inAmount += item.inAmount || 0;
+        existing.outAmount += item.outAmount || 0;
+        existing.transactions.push(item);
+
+        // Keep latest date & creator
+        if (new Date(item.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
+          existing.createdAt = item.createdAt;
+          existing.createdByName = item.createdByName;
+        }
+
+        // Keep richer details
+        if (item.applicantName && (!existing.applicantName || existing.applicantName === "—")) {
+          existing.applicantName = item.applicantName;
+        }
+        if (item.phone && (!existing.phone || existing.phone === "—")) {
+          existing.phone = item.phone;
+        }
+        if (item.serviceTitle && (!existing.serviceTitle || existing.serviceTitle === "—")) {
+          existing.serviceTitle = item.serviceTitle;
+        }
+        if (item.totalAmount && (!existing.totalAmount || existing.totalAmount === 0)) {
+          existing.totalAmount = item.totalAmount;
+        }
+        if (item.dueAmount !== undefined) {
+          existing.dueAmount = item.dueAmount;
+        }
+        if (item.notes && !existing.notes.includes(item.notes)) {
+          existing.notes = existing.notes ? `${existing.notes} | ${item.notes}` : item.notes;
+        }
+      }
+    }
+
+    const groupedList: any[] = [];
+    for (const group of groupedMap.values()) {
+      group.transactions.sort(
+        (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      group.profit = (group.inAmount || 0) - (group.outAmount || 0);
+      group.fileExpense = group.outAmount || 0;
+      group.paymentStatus = (group.dueAmount || 0) <= 0 ? "paid" : "due";
+      groupedList.push(group);
+    }
+
     // Filter by paymentStatus if requested
-    let filteredList = unifiedList;
+    let filteredList = groupedList;
     if (paymentStatus === "paid") {
-      filteredList = unifiedList.filter((item) => item.dueAmount <= 0);
+      filteredList = groupedList.filter((item) => item.dueAmount <= 0);
     } else if (paymentStatus === "due") {
-      filteredList = unifiedList.filter((item) => item.dueAmount > 0);
+      filteredList = groupedList.filter((item) => item.dueAmount > 0);
+    }
+
+    // Filter by transactionType if requested
+    if (transactionType === "collection") {
+      filteredList = filteredList.filter((item) => item.inAmount > 0);
+    } else if (transactionType === "expense") {
+      filteredList = filteredList.filter((item) => item.outAmount > 0);
     }
 
     // Sort descending by date
     filteredList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    // 5. Calculate KPI Metrics for Today
+    // 6. Calculate KPI Metrics for Today
     const today = new Date();
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
     const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
@@ -330,7 +416,6 @@ export async function GET(request: Request) {
 
     let todayIn = 0;
     let todayOut = 0;
-    let todayDue = 0;
 
     for (const tx of todayTxs) {
       if (tx.type === "collection") todayIn += tx.amount || 0;
@@ -339,15 +424,47 @@ export async function GET(request: Request) {
 
     for (const p of todayPassports) {
       todayIn += Number(p.paidAmount) || 0;
-      todayDue += Number(p.dueAmount) || Math.max(0, (Number(p.totalAmount) || 0) - (Number(p.paidAmount) || 0));
     }
 
     for (const v of todayVisas) {
-      const tot = Number(v.totalAmount ?? v.feeAmount) || 0;
-      const pd = Number(v.paidAmount) || 0;
-      todayIn += pd;
-      todayDue += Number(v.dueAmount) || Math.max(0, tot - pd);
+      todayIn += Number(v.paidAmount) || 0;
     }
+
+    // Today due amount: distinct per tracking number to avoid duplication
+    const todaySeenRefs = new Set<string>();
+    let todayDue = 0;
+    for (const p of todayPassports) {
+      const ref = p.entryNumber.trim().toUpperCase();
+      if (!todaySeenRefs.has(ref)) {
+        todaySeenRefs.add(ref);
+        todayDue += Number(p.dueAmount) || Math.max(0, (Number(p.totalAmount) || 0) - (Number(p.paidAmount) || 0));
+      }
+    }
+    for (const v of todayVisas) {
+      const ref = v.trackingId.trim().toUpperCase();
+      if (!todaySeenRefs.has(ref)) {
+        todaySeenRefs.add(ref);
+        todayDue += Number(v.dueAmount) || Math.max(0, (Number(v.totalAmount ?? v.feeAmount) || 0) - (Number(v.paidAmount) || 0));
+      }
+    }
+    for (const tx of todayTxs) {
+      if (tx.referenceId) {
+        const ref = tx.referenceId.trim().toUpperCase();
+        if (!todaySeenRefs.has(ref)) {
+          todaySeenRefs.add(ref);
+          if (tx.moduleType === "passport" && passportMap[tx.referenceId]) {
+            todayDue += passportMap[tx.referenceId].dueAmount || 0;
+          } else if (tx.moduleType === "visa" && visaMap[tx.referenceId]) {
+            todayDue += visaMap[tx.referenceId].dueAmount || 0;
+          }
+        }
+      }
+    }
+
+    const todayUniqueKeys = new Set<string>();
+    for (const p of todayPassports) todayUniqueKeys.add(`P_${p.entryNumber}`);
+    for (const v of todayVisas) todayUniqueKeys.add(`V_${v.trackingId}`);
+    for (const t of todayTxs) todayUniqueKeys.add(t.referenceId ? `R_${t.referenceId.trim().toUpperCase()}` : `TX_${t._id}`);
 
     // Calculate Filtered Summary
     let filteredIn = 0;
@@ -403,7 +520,7 @@ export async function GET(request: Request) {
           netCash: todayIn - todayOut,
           profit: todayIn - todayOut,
           dueAmount: todayDue,
-          totalCount: todayTxs.length + todayPassports.length + todayVisas.length,
+          totalCount: todayUniqueKeys.size,
           passportCount:
             todayTxs.filter((t) => t.moduleType === "passport").length + todayPassports.length,
           visaCount:

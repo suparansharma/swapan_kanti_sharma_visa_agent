@@ -3,6 +3,12 @@ import connectToDatabase from "@/lib/mongodb";
 import VisaApplication from "@/models/VisaApplication";
 import { getAuthUser } from "@/lib/auth";
 
+// In-memory cache for global visa stats (auto-invalidated on POST/PUT/DELETE)
+let cachedVisaStats: {
+  data: any;
+  timestamp: number;
+} | null = null;
+
 export async function GET(request: Request) {
   try {
     await connectToDatabase();
@@ -44,6 +50,90 @@ export async function GET(request: Request) {
       ];
     }
 
+    // 1. Check if stats are in memory cache
+    const now = Date.now();
+    const isStatsFresh = cachedVisaStats && now - cachedVisaStats.timestamp < 30000;
+
+    const statsPromise = isStatsFresh
+      ? Promise.resolve([cachedVisaStats!.data])
+      : VisaApplication.aggregate([
+          {
+            $group: {
+              _id: null,
+              total: { $sum: 1 },
+              totalContractAmount: {
+                $sum: { $ifNull: ["$totalAmount", "$feeAmount"] },
+              },
+              totalCollectedAmount: {
+                $sum: { $ifNull: ["$paidAmount", 0] },
+              },
+              totalDueAmount: {
+                $sum: { $ifNull: ["$dueAmount", 0] },
+              },
+              approved: {
+                $sum: {
+                  $cond: [
+                    {
+                      $in: [
+                        "$status",
+                        ["approved", "delivery_completed", "dr_ayush_done"],
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+              ready: {
+                $sum: {
+                  $cond: [
+                    {
+                      $in: [
+                        "$status",
+                        ["ready_for_delivery", "ready_for_pickup", "delivered"],
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+              processing: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        {
+                          $not: {
+                            $in: [
+                              "$status",
+                              ["approved", "delivery_completed", "dr_ayush_done"],
+                            ],
+                          },
+                        },
+                        {
+                          $not: {
+                            $in: [
+                              "$status",
+                              [
+                                "ready_for_delivery",
+                                "ready_for_pickup",
+                                "delivered",
+                              ],
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        ]);
+
     // Run query, count, and aggregation in parallel for ultra-fast performance
     const [applications, totalMatching, statsResult] = await Promise.all([
       VisaApplication.find(query)
@@ -54,83 +144,7 @@ export async function GET(request: Request) {
         .limit(limit)
         .lean(),
       VisaApplication.countDocuments(query),
-      VisaApplication.aggregate([
-        {
-          $group: {
-            _id: null,
-            total: { $sum: 1 },
-            totalContractAmount: {
-              $sum: { $ifNull: ["$totalAmount", "$feeAmount"] },
-            },
-            totalCollectedAmount: {
-              $sum: { $ifNull: ["$paidAmount", 0] },
-            },
-            totalDueAmount: {
-              $sum: { $ifNull: ["$dueAmount", 0] },
-            },
-            approved: {
-              $sum: {
-                $cond: [
-                  {
-                    $in: [
-                      "$status",
-                      ["approved", "delivery_completed", "dr_ayush_done"],
-                    ],
-                  },
-                  1,
-                  0,
-                ],
-              },
-            },
-            ready: {
-              $sum: {
-                $cond: [
-                  {
-                    $in: [
-                      "$status",
-                      ["ready_for_delivery", "ready_for_pickup", "delivered"],
-                    ],
-                  },
-                  1,
-                  0,
-                ],
-              },
-            },
-            processing: {
-              $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      {
-                        $not: {
-                          $in: [
-                            "$status",
-                            ["approved", "delivery_completed", "dr_ayush_done"],
-                          ],
-                        },
-                      },
-                      {
-                        $not: {
-                          $in: [
-                            "$status",
-                            [
-                              "ready_for_delivery",
-                              "ready_for_pickup",
-                              "delivered",
-                            ],
-                          ],
-                        },
-                      },
-                    ],
-                  },
-                  1,
-                  0,
-                ],
-              },
-            },
-          },
-        },
-      ]),
+      statsPromise,
     ]);
 
     const statsData = statsResult[0] || {
@@ -142,6 +156,13 @@ export async function GET(request: Request) {
       processing: 0,
       ready: 0,
     };
+
+    if (!isStatsFresh) {
+      cachedVisaStats = {
+        data: statsData,
+        timestamp: now,
+      };
+    }
 
     const totalPages = Math.ceil(totalMatching / limit) || 1;
 
@@ -416,6 +437,7 @@ export async function POST(request: Request) {
       createdByName: authUser?.name || "",
     });
 
+    cachedVisaStats = null;
     return NextResponse.json(
       { success: true, message: "Visa & Passport record created successfully", application: newApp },
       { status: 201 }
@@ -516,6 +538,7 @@ export async function PUT(request: Request) {
       );
     }
 
+    cachedVisaStats = null;
     return NextResponse.json({
       success: true,
       message: "Application status updated successfully",
@@ -541,6 +564,7 @@ export async function DELETE(request: Request) {
 
     await VisaApplication.findByIdAndDelete(id);
 
+    cachedVisaStats = null;
     return NextResponse.json({
       success: true,
       message: "Application deleted successfully",

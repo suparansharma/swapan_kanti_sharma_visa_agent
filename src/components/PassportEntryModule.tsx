@@ -82,13 +82,36 @@ export const PASSPORT_TYPE_OPTIONS = [
   { value: "10y_go_govt_work_3d", label: "১০ বছর মেয়াদী অতীব জরুরি সরকারি আদেশ (GO) এর ভিত্তিতে সরকারী কাজের ক্ষেত্রে (৩ কর্ম দিবস)" },
 ];
 
+// Module-level in-memory cache to provide instant 0ms rendering when switching to passport_entry tab
+let memoryPassportCache: {
+  entries: PassportEntryItem[];
+  stats: {
+    total: number;
+    totalContractAmount: number;
+    totalCollectedAmount: number;
+    totalDueAmount: number;
+    readyCount: number;
+    deliveredCount: number;
+    processingCount: number;
+  };
+  pagination: {
+    page: number;
+    totalPages: number;
+    totalEntries: number;
+  };
+  filterKey: string;
+  cachedAt: number;
+} | null = null;
+
+let memoryPassportEmployeesCache: Array<{ _id: string; name: string; employeeId?: string; designation?: string }> | null = null;
+
 export default function PassportEntryModule() {
   const { user } = useAuth();
-  const [entries, setEntries] = useState<PassportEntryItem[]>([]);
+  const [entries, setEntries] = useState<PassportEntryItem[]>(() => memoryPassportCache?.entries || []);
   const [employeesList, setEmployeesList] = useState<
     Array<{ _id: string; name: string; employeeId?: string; designation?: string }>
-  >([]);
-  const [stats, setStats] = useState({
+  >(() => memoryPassportEmployeesCache || []);
+  const [stats, setStats] = useState(() => memoryPassportCache?.stats || {
     total: 0,
     totalContractAmount: 0,
     totalCollectedAmount: 0,
@@ -97,16 +120,17 @@ export default function PassportEntryModule() {
     deliveredCount: 0,
     processingCount: 0,
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !memoryPassportCache);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState<"all" | "individual" | "family_group">("all");
 
   // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(() => memoryPassportCache?.pagination.page || 1);
   const [pageSize, setPageSize] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalMatching, setTotalMatching] = useState(0);
+  const [totalPages, setTotalPages] = useState(() => memoryPassportCache?.pagination.totalPages || 1);
+  const [totalMatching, setTotalMatching] = useState(() => memoryPassportCache?.pagination.totalEntries || 0);
 
   // Modal: Add New Passport Entry Form
   const [showAddModal, setShowAddModal] = useState(false);
@@ -209,16 +233,24 @@ export default function PassportEntryModule() {
   const numPaid = Number(paidAmount) || 0;
   const liveDue = Math.max(0, numTotal - numPaid);
 
-  // Fetch entries with pagination
+  // Fetch entries with pagination and in-memory caching
   const fetchEntries = async (
     page = currentPage,
     limit = pageSize,
     search = searchQuery,
     statusFilter = filterStatus,
-    categoryFilter = filterCategory
+    categoryFilter = filterCategory,
+    isBackgroundSync = false
   ) => {
-    try {
+    const filterKey = `${page}_${limit}_${search.trim()}_${statusFilter}_${categoryFilter}`;
+
+    if (!isBackgroundSync && (!memoryPassportCache || memoryPassportCache.filterKey !== filterKey)) {
       setLoading(true);
+    } else {
+      setIsSyncing(true);
+    }
+
+    try {
       const params = new URLSearchParams();
       if (search.trim()) params.append("search", search.trim());
       if (statusFilter !== "all") params.append("status", statusFilter);
@@ -229,28 +261,57 @@ export default function PassportEntryModule() {
       const res = await fetch(`/api/passport-entries?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setEntries(data.entries || []);
-        if (data.stats) setStats(data.stats);
-        if (data.pagination) {
-          setCurrentPage(data.pagination.page);
-          setTotalPages(data.pagination.totalPages || 1);
-          setTotalMatching(data.pagination.totalEntries || 0);
-        }
+        const items = data.entries || [];
+        const statsData = data.stats || {
+          total: 0,
+          totalContractAmount: 0,
+          totalCollectedAmount: 0,
+          totalDueAmount: 0,
+          readyCount: 0,
+          deliveredCount: 0,
+          processingCount: 0,
+        };
+        const pageData = {
+          page: data.pagination?.page || page,
+          totalPages: data.pagination?.totalPages || 1,
+          totalEntries: data.pagination?.totalEntries || 0,
+        };
+
+        setEntries(items);
+        setStats(statsData);
+        setCurrentPage(pageData.page);
+        setTotalPages(pageData.totalPages);
+        setTotalMatching(pageData.totalEntries);
+
+        memoryPassportCache = {
+          entries: items,
+          stats: statsData,
+          pagination: pageData,
+          filterKey,
+          cachedAt: Date.now(),
+        };
       }
     } catch (err) {
       console.error("Error fetching passport entries:", err);
     } finally {
       setLoading(false);
+      setIsSyncing(false);
     }
   };
 
-  // Fetch employees list for receiver select box
+  // Fetch employees list for receiver select box (cached)
   const fetchEmployeesList = async () => {
+    if (memoryPassportEmployeesCache && memoryPassportEmployeesCache.length > 0) {
+      setEmployeesList(memoryPassportEmployeesCache);
+      return;
+    }
     try {
       const res = await fetch("/api/employees?limit=100");
       if (res.ok) {
         const data = await res.json();
-        setEmployeesList(data.employees || []);
+        const emps = data.employees || [];
+        memoryPassportEmployeesCache = emps;
+        setEmployeesList(emps);
       }
     } catch (err) {
       console.error("Error fetching employees:", err);
@@ -258,7 +319,9 @@ export default function PassportEntryModule() {
   };
 
   useEffect(() => {
-    fetchEmployeesList();
+    if (!memoryPassportEmployeesCache || memoryPassportEmployeesCache.length === 0) {
+      fetchEmployeesList();
+    }
   }, []);
 
   useEffect(() => {
@@ -268,7 +331,20 @@ export default function PassportEntryModule() {
   }, [user, receivedBy]);
 
   useEffect(() => {
-    fetchEntries(1, pageSize, searchQuery, filterStatus, filterCategory);
+    const filterKey = `1_${pageSize}_${searchQuery.trim()}_${filterStatus}_${filterCategory}`;
+    if (memoryPassportCache && memoryPassportCache.filterKey === filterKey) {
+      // Instant render from cache - 0ms delay!
+      setEntries(memoryPassportCache.entries);
+      setStats(memoryPassportCache.stats);
+      setCurrentPage(memoryPassportCache.pagination.page);
+      setTotalPages(memoryPassportCache.pagination.totalPages);
+      setTotalMatching(memoryPassportCache.pagination.totalEntries);
+      setLoading(false);
+      // Background revalidation
+      fetchEntries(1, pageSize, searchQuery, filterStatus, filterCategory, true);
+    } else {
+      fetchEntries(1, pageSize, searchQuery, filterStatus, filterCategory, !!memoryPassportCache);
+    }
   }, [filterStatus, filterCategory, pageSize]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -359,6 +435,7 @@ export default function PassportEntryModule() {
         setNotes("");
         setAppCategory("individual");
         setFamilyMembers([]);
+        memoryPassportCache = null;
         fetchEntries();
       } else {
         setFormError(data.error || "পাসপোর্ট এন্ট্রি সংরক্ষণ করা সম্ভব হয়নি।");
@@ -379,6 +456,7 @@ export default function PassportEntryModule() {
         body: JSON.stringify({ id, status: newStatus }),
       });
       if (res.ok) {
+        memoryPassportCache = null;
         fetchEntries();
         if (selectedEntry && selectedEntry._id === id) {
           setSelectedEntry({ ...selectedEntry, status: newStatus });
@@ -409,6 +487,7 @@ export default function PassportEntryModule() {
       if (res.ok && data.success) {
         setEditPaymentModal(false);
         setSelectedEntry(data.entry);
+        memoryPassportCache = null;
         fetchEntries();
       }
     } catch (err) {
@@ -512,6 +591,7 @@ export default function PassportEntryModule() {
 
       const data = await res.json();
       if (res.ok && data.success) {
+        memoryPassportCache = null;
         setEditingEntry(null);
         fetchEntries();
       } else {
@@ -532,6 +612,7 @@ export default function PassportEntryModule() {
       if (res.ok) {
         if (selectedEntry?._id === id) setSelectedEntry(null);
         if (editingEntry?._id === id) setEditingEntry(null);
+        memoryPassportCache = null;
         fetchEntries();
       }
     } catch (err) {
@@ -613,13 +694,13 @@ export default function PassportEntryModule() {
 
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <button
-            onClick={() => fetchEntries()}
+            onClick={() => fetchEntries(currentPage, pageSize, searchQuery, filterStatus, filterCategory, false)}
             className="btn-secondary btn-sm"
             style={{ display: "flex", alignItems: "center", gap: "6px" }}
             title="রিফ্রেশ করুন"
           >
-            <RefreshCw size={14} className={loading ? "spin" : ""} />
-            <span>রিফ্রেশ</span>
+            <RefreshCw size={14} className={loading || isSyncing ? "spin" : ""} />
+            <span>{isSyncing ? "আপডেট হচ্ছে..." : "রিফ্রেশ"}</span>
           </button>
           <button
             onClick={() => {
@@ -1583,7 +1664,7 @@ export default function PassportEntryModule() {
                   const newLimit = parseInt(e.target.value, 10);
                   setPageSize(newLimit);
                   setCurrentPage(1);
-                  fetchEntries(1, newLimit, searchQuery, filterStatus);
+                  fetchEntries(1, newLimit, searchQuery, filterStatus, filterCategory);
                 }}
                 className="input-field"
                 style={{

@@ -100,6 +100,29 @@ interface VisaApplicationItem {
   updatedAt?: string;
 }
 
+// Module-level in-memory cache to provide instant 0ms rendering when switching to visa_applications tab
+let memoryVisaCache: {
+  applications: VisaApplicationItem[];
+  stats: {
+    total: number;
+    totalContractAmount: number;
+    totalCollectedAmount: number;
+    totalDueAmount: number;
+    approved: number;
+    processing: number;
+    ready: number;
+  };
+  pagination: {
+    page: number;
+    totalPages: number;
+    totalEntries: number;
+  };
+  filterKey: string;
+  cachedAt: number;
+} | null = null;
+
+let memoryEmployeesCache: Array<{ _id: string; name: string; employeeId?: string; designation?: string; department?: string }> | null = null;
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -188,9 +211,9 @@ export default function Dashboard() {
   const [hrmOpen, setHrmOpen] = useState(true);
   const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
 
-  // Visa applications state
-  const [applications, setApplications] = useState<VisaApplicationItem[]>([]);
-  const [visaStats, setVisaStats] = useState({
+  // Visa applications state (hydrated instantly from in-memory cache if available)
+  const [applications, setApplications] = useState<VisaApplicationItem[]>(() => memoryVisaCache?.applications || []);
+  const [visaStats, setVisaStats] = useState(() => memoryVisaCache?.stats || {
     total: 0,
     totalContractAmount: 0,
     totalCollectedAmount: 0,
@@ -199,7 +222,8 @@ export default function Dashboard() {
     processing: 0,
     ready: 0,
   });
-  const [loadingVisa, setLoadingVisa] = useState(true);
+  const [loadingVisa, setLoadingVisa] = useState(() => !memoryVisaCache);
+  const [isSyncingVisa, setIsSyncingVisa] = useState(false);
   const [searchVisa, setSearchVisa] = useState("");
   const [filterVisaStatus, setFilterVisaStatus] = useState("all");
   const [filterVisaCategory, setFilterVisaCategory] = useState<"all" | "individual" | "family_group">("all");
@@ -207,10 +231,10 @@ export default function Dashboard() {
   const [selectedVisa, setSelectedVisa] = useState<VisaApplicationItem | null>(null);
 
   // Visa pagination state
-  const [visaCurrentPage, setVisaCurrentPage] = useState(1);
+  const [visaCurrentPage, setVisaCurrentPage] = useState(() => memoryVisaCache?.pagination.page || 1);
   const [visaPageSize, setVisaPageSize] = useState(10);
-  const [visaTotalPages, setVisaTotalPages] = useState(1);
-  const [visaTotalMatching, setVisaTotalMatching] = useState(0);
+  const [visaTotalPages, setVisaTotalPages] = useState(() => memoryVisaCache?.pagination.totalPages || 1);
+  const [visaTotalMatching, setVisaTotalMatching] = useState(() => memoryVisaCache?.pagination.totalEntries || 0);
 
   // New Visa form state
   const [applicantName, setApplicantName] = useState("");
@@ -301,16 +325,25 @@ export default function Dashboard() {
   const numVisaPaid = Number(paidAmount) || 0;
   const liveVisaDue = Math.max(0, numVisaTotal - numVisaPaid);
 
-  // Fetch Visa Applications
+  // Fetch Visa Applications with in-memory caching and background revalidation
   const fetchVisaApplications = async (
     page = visaCurrentPage,
     limit = visaPageSize,
     search = searchVisa,
     statusFilter = filterVisaStatus,
-    categoryFilter = filterVisaCategory
+    categoryFilter = filterVisaCategory,
+    isBackgroundSync = false
   ) => {
-    try {
+    const filterKey = `${page}_${limit}_${search.trim()}_${statusFilter}_${categoryFilter}`;
+
+    // Only show full loading spinner if we don't have cached data for this filter
+    if (!isBackgroundSync && (!memoryVisaCache || memoryVisaCache.filterKey !== filterKey)) {
       setLoadingVisa(true);
+    } else {
+      setIsSyncingVisa(true);
+    }
+
+    try {
       const params = new URLSearchParams();
       if (search.trim()) params.append("search", search.trim());
       if (statusFilter !== "all") params.append("status", statusFilter);
@@ -321,28 +354,57 @@ export default function Dashboard() {
       const res = await fetch(`/api/visa-applications?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setApplications(data.applications || []);
-        if (data.stats) setVisaStats(data.stats);
-        if (data.pagination) {
-          setVisaCurrentPage(data.pagination.page);
-          setVisaTotalPages(data.pagination.totalPages || 1);
-          setVisaTotalMatching(data.pagination.totalEntries || 0);
-        }
+        const apps = data.applications || [];
+        const stats = data.stats || {
+          total: 0,
+          totalContractAmount: 0,
+          totalCollectedAmount: 0,
+          totalDueAmount: 0,
+          approved: 0,
+          processing: 0,
+          ready: 0,
+        };
+        const pageData = {
+          page: data.pagination?.page || page,
+          totalPages: data.pagination?.totalPages || 1,
+          totalEntries: data.pagination?.totalEntries || 0,
+        };
+
+        setApplications(apps);
+        setVisaStats(stats);
+        setVisaCurrentPage(pageData.page);
+        setVisaTotalPages(pageData.totalPages);
+        setVisaTotalMatching(pageData.totalEntries);
+
+        memoryVisaCache = {
+          applications: apps,
+          stats,
+          pagination: pageData,
+          filterKey,
+          cachedAt: Date.now(),
+        };
       }
     } catch (err) {
       console.error("Error fetching visa applications:", err);
     } finally {
       setLoadingVisa(false);
+      setIsSyncingVisa(false);
     }
   };
 
-  // Fetch employees list for receiver select box
+  // Fetch employees list for receiver select box (cached in memory)
   const fetchEmployeesList = async () => {
+    if (memoryEmployeesCache && memoryEmployeesCache.length > 0) {
+      setEmployeesList(memoryEmployeesCache);
+      return;
+    }
     try {
       const res = await fetch("/api/employees?limit=100");
       if (res.ok) {
         const data = await res.json();
-        setEmployeesList(data.employees || []);
+        const emps = data.employees || [];
+        memoryEmployeesCache = emps;
+        setEmployeesList(emps);
       }
     } catch (err) {
       console.error("Error fetching employees:", err);
@@ -361,8 +423,23 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (activeTab === "visa_applications") {
-      fetchVisaApplications(1, visaPageSize, searchVisa, filterVisaStatus, filterVisaCategory);
-      fetchEmployeesList();
+      const filterKey = `1_${visaPageSize}_${searchVisa.trim()}_${filterVisaStatus}_${filterVisaCategory}`;
+      if (memoryVisaCache && memoryVisaCache.filterKey === filterKey) {
+        // Immediate restore from cache - 0ms delay!
+        setApplications(memoryVisaCache.applications);
+        setVisaStats(memoryVisaCache.stats);
+        setVisaCurrentPage(memoryVisaCache.pagination.page);
+        setVisaTotalPages(memoryVisaCache.pagination.totalPages);
+        setVisaTotalMatching(memoryVisaCache.pagination.totalEntries);
+        setLoadingVisa(false);
+        // Background sync to ensure fresh data without blocking UI
+        fetchVisaApplications(1, visaPageSize, searchVisa, filterVisaStatus, filterVisaCategory, true);
+      } else {
+        fetchVisaApplications(1, visaPageSize, searchVisa, filterVisaStatus, filterVisaCategory, !!memoryVisaCache);
+      }
+      if (!memoryEmployeesCache || memoryEmployeesCache.length === 0) {
+        fetchEmployeesList();
+      }
     }
   }, [filterVisaStatus, filterVisaCategory, visaPageSize, activeTab]);
 
@@ -418,6 +495,7 @@ export default function Dashboard() {
         setTotalAmount("");
         setPaidAmount("");
         setNotes("");
+        memoryVisaCache = null;
         fetchVisaApplications();
       }
     } catch (err) {
@@ -438,6 +516,7 @@ export default function Dashboard() {
         method: "DELETE",
       });
       if (res.ok) {
+        memoryVisaCache = null;
         fetchVisaApplications();
         if (selectedVisa && selectedVisa._id === id) {
           setSelectedVisa(null);
@@ -512,6 +591,7 @@ export default function Dashboard() {
 
       const data = await res.json();
       if (res.ok && data.success) {
+        memoryVisaCache = null;
         setEditingVisa(null);
         fetchVisaApplications();
       } else {
@@ -533,6 +613,7 @@ export default function Dashboard() {
         body: JSON.stringify({ id, status: newStatus }),
       });
       if (res.ok) {
+        memoryVisaCache = null;
         fetchVisaApplications();
       }
     } catch (err) {
@@ -1534,13 +1615,13 @@ export default function Dashboard() {
 
               <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                 <button
-                  onClick={() => fetchVisaApplications()}
+                  onClick={() => fetchVisaApplications(visaCurrentPage, visaPageSize, searchVisa, filterVisaStatus, filterVisaCategory, false)}
                   className="btn-secondary btn-sm"
                   style={{ display: "flex", alignItems: "center", gap: "6px" }}
                   title="রিফ্রেশ করুন"
                 >
-                  <RefreshCw size={14} className={loadingVisa ? "spin" : ""} />
-                  <span>রিফ্রেশ</span>
+                  <RefreshCw size={14} className={loadingVisa || isSyncingVisa ? "spin" : ""} />
+                  <span>{isSyncingVisa ? "আপডেট হচ্ছে..." : "রিফ্রেশ"}</span>
                 </button>
                 <button
                   onClick={() => {
@@ -2356,7 +2437,7 @@ export default function Dashboard() {
                         const newLimit = parseInt(e.target.value, 10);
                         setVisaPageSize(newLimit);
                         setVisaCurrentPage(1);
-                        fetchVisaApplications(1, newLimit, searchVisa, filterVisaStatus);
+                        fetchVisaApplications(1, newLimit, searchVisa, filterVisaStatus, filterVisaCategory);
                       }}
                       className="input-field"
                       style={{

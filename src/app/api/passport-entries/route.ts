@@ -3,6 +3,12 @@ import connectToDatabase from "@/lib/mongodb";
 import PassportEntry from "@/models/PassportEntry";
 import { getAuthUser } from "@/lib/auth";
 
+// In-memory cache for global passport stats (auto-invalidated on POST/PUT/DELETE)
+let cachedPassportStats: {
+  data: any;
+  timestamp: number;
+} | null = null;
+
 export async function GET(request: Request) {
   try {
     await connectToDatabase();
@@ -52,6 +58,44 @@ export async function GET(request: Request) {
 
     const query = andConditions.length > 0 ? { $and: andConditions } : {};
 
+    // 1. Check if stats are in memory cache
+    const now = Date.now();
+    const isStatsFresh = cachedPassportStats && now - cachedPassportStats.timestamp < 30000;
+
+    const statsPromise = isStatsFresh
+      ? Promise.resolve([cachedPassportStats!.data])
+      : PassportEntry.aggregate([
+          {
+            $group: {
+              _id: null,
+              total: { $sum: 1 },
+              totalContractAmount: { $sum: "$totalAmount" },
+              totalCollectedAmount: { $sum: "$paidAmount" },
+              totalDueAmount: { $sum: "$dueAmount" },
+              readyCount: {
+                $sum: { $cond: [{ $eq: ["$status", "ready_for_pickup"] }, 1, 0] },
+              },
+              deliveredCount: {
+                $sum: { $cond: [{ $eq: ["$status", "delivered"] }, 1, 0] },
+              },
+              processingCount: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $ne: ["$status", "ready_for_pickup"] },
+                        { $ne: ["$status", "delivered"] },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        ]);
+
     // Run query, count, and aggregation in parallel for ultra-fast response
     const [entries, totalMatching, statsResult] = await Promise.all([
       PassportEntry.find(query)
@@ -62,37 +106,7 @@ export async function GET(request: Request) {
         .limit(limit)
         .lean(),
       PassportEntry.countDocuments(query),
-      PassportEntry.aggregate([
-        {
-          $group: {
-            _id: null,
-            total: { $sum: 1 },
-            totalContractAmount: { $sum: "$totalAmount" },
-            totalCollectedAmount: { $sum: "$paidAmount" },
-            totalDueAmount: { $sum: "$dueAmount" },
-            readyCount: {
-              $sum: { $cond: [{ $eq: ["$status", "ready_for_pickup"] }, 1, 0] },
-            },
-            deliveredCount: {
-              $sum: { $cond: [{ $eq: ["$status", "delivered"] }, 1, 0] },
-            },
-            processingCount: {
-              $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      { $ne: ["$status", "ready_for_pickup"] },
-                      { $ne: ["$status", "delivered"] },
-                    ],
-                  },
-                  1,
-                  0,
-                ],
-              },
-            },
-          },
-        },
-      ]),
+      statsPromise,
     ]);
 
     const statsData = statsResult[0] || {
@@ -104,6 +118,13 @@ export async function GET(request: Request) {
       deliveredCount: 0,
       processingCount: 0,
     };
+
+    if (!isStatsFresh) {
+      cachedPassportStats = {
+        data: statsData,
+        timestamp: now,
+      };
+    }
 
     const totalPages = Math.ceil(totalMatching / limit) || 1;
 
@@ -358,6 +379,7 @@ export async function POST(request: Request) {
       createdByName: authUser?.name || "",
     });
 
+    cachedPassportStats = null;
     return NextResponse.json(
       {
         success: true,
@@ -442,6 +464,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Entry not found" }, { status: 404 });
     }
 
+    cachedPassportStats = null;
     return NextResponse.json({
       success: true,
       message: "পাসপোর্ট এন্ট্রি সফলভাবে আপডেট হয়েছে।",
@@ -467,6 +490,7 @@ export async function DELETE(request: Request) {
 
     await PassportEntry.findByIdAndDelete(id);
 
+    cachedPassportStats = null;
     return NextResponse.json({
       success: true,
       message: "পাসপোর্ট এন্ট্রি সফলভাবে মুছে ফেলা হয়েছে।",

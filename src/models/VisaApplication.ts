@@ -200,12 +200,16 @@ VisaApplicationSchema.pre("save", function () {
   }
 });
 
-// Search indexes for rapid lookup by trackingId or passportNumber
+// Search indexes for rapid lookup by trackingId, passport, and filters
 VisaApplicationSchema.index({ trackingId: 1 });
 VisaApplicationSchema.index({ createdAt: -1 });
 VisaApplicationSchema.index({ passportNumber: 1 });
 VisaApplicationSchema.index({ familyGroupId: 1 });
 VisaApplicationSchema.index({ familyHeadTrackingId: 1 });
+VisaApplicationSchema.index({ status: 1, createdAt: -1 });
+VisaApplicationSchema.index({ applicationCategory: 1, createdAt: -1 });
+VisaApplicationSchema.index({ applicantName: 1 });
+VisaApplicationSchema.index({ phone: 1 });
 
 const VisaApplication: Model<IVisaApplication> =
   mongoose.models.VisaApplication ||

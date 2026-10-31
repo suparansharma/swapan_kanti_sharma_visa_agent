@@ -203,6 +203,9 @@ PassportEntrySchema.index({ nid: 1 });
 PassportEntrySchema.index({ mobile: 1 });
 PassportEntrySchema.index({ familyGroupId: 1 });
 PassportEntrySchema.index({ familyHeadEntryNumber: 1 });
+PassportEntrySchema.index({ status: 1, createdAt: -1 });
+PassportEntrySchema.index({ applicationCategory: 1, createdAt: -1 });
+PassportEntrySchema.index({ name: 1 });
 
 const PassportEntry: Model<IPassportEntry> =
   mongoose.models.PassportEntry ||
